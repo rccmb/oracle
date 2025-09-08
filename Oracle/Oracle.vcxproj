@@ -129,7 +129,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Oracle.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="Overlay.cpp" />
+    <ClCompile Include="Utils.cpp" />
+    <ClCompile Include="Vision.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Overlay.h" />
+    <ClInclude Include="Utils.h" />
+    <ClInclude Include="Vision.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
