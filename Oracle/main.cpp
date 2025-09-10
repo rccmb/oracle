@@ -7,7 +7,7 @@
 
  #include "Utils.h"
  #include "Overlay.h"
- #include "Vision.h"
+ #include "ChessboardDetection.h"
 
 int main() {
 	// Initialize overlay window.

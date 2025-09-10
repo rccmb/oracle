@@ -24,7 +24,7 @@
     <ClCompile Include="Overlay.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Vision.cpp">
+    <ClCompile Include="ChessboardDetection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -35,7 +35,7 @@
     <ClInclude Include="Overlay.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Vision.h">
+    <ClInclude Include="ChessboardDetection.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

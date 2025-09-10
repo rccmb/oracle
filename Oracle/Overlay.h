@@ -6,8 +6,7 @@
 #include <iostream>
 #include <string>
 
-#define WM_CHESSBOARD_FOUND (WM_USER + 1)
-#define WM_CHESSBOARD_CANDIDATES (WM_USER + 2)
+#define WM_CHESSBOARD_DETECTED (WM_USER + 1)
 
 /**
  * @brief Window procedure to handle messages for the overlay window.

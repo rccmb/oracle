@@ -1,4 +1,4 @@
-﻿#include "Vision.h"
+﻿#include "ChessboardDetection.h"
 
 std::pair<CLICK, CLICK> CLICKS;
 
@@ -27,7 +27,7 @@ std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, const cv::Rect& 
 
     uchar colorA = CLICKS.first.grayscaleValue;
     uchar colorB = CLICKS.second.grayscaleValue;
-    const int colorThreshold = 30; // Acceptable difference for color match.
+    const int colorThreshold = 5; // Acceptable difference for color match.
 
     std::vector<cv::Point> junctions;
     int totalChecks = 0;
@@ -46,8 +46,6 @@ std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, const cv::Rect& 
                 {x - offset, y + offset}, // BL.
                 {x + offset, y + offset}  // BR.
             };
-
-			std::cout << "[DEBUG] Checking junction at (" << x << ", " << y << ")\n";
 
             bool valid = true;
             std::vector<double> avgs;
@@ -78,7 +76,6 @@ std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, const cv::Rect& 
 
             if (pattern1 || pattern2) {
                 junctions.emplace_back(x + offset - patchSize, y + offset - patchSize);
-				std::cout << "[DEBUG] Found junction at (" << x << ", " << y << ")\n";
 				x += offset * 2; // Skip ahead to avoid overlapping checks.
                 junctionsFound += 1;
             }
@@ -113,8 +110,24 @@ std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, const cv::Rect& 
     board_y = std::clamp(board_y, 0, gray.rows - board_h);
 
     cv::Rect boardRect(board_x, board_y, board_w, board_h);
-    std::cout << "Detected board at (" << boardRect.x << ", " << boardRect.y << ") size (" << boardRect.width << "x" << boardRect.height << ")\n";
+    std::cout << "[INFO] Detected board at (" << boardRect.x << ", " << boardRect.y << ") size (" << boardRect.width << "x" << boardRect.height << ")\n";
     return boardRect;
+}
+
+double SampleCellBrightness(const cv::Mat& gray, const cv::Rect& board, int row, int col) {
+    int cellW = board.width / 8;
+    int cellH = board.height / 8;
+
+    cv::Point center(
+        board.x + col * cellW + cellW / 2,
+        board.y + row * cellH + cellH / 2
+    );
+
+    int radius = std::min(cellW, cellH) / 4; 
+    cv::Rect roi(center.x - radius, center.y - radius, radius * 2, radius * 2);
+    roi &= cv::Rect(0, 0, gray.cols, gray.rows);
+
+    return cv::mean(gray(roi))[0];
 }
 
 DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
@@ -125,43 +138,47 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
     HWND hwndOverlay = (HWND)param;
     int drawn = 0;
 
-    while (true) {
-        // ClearBestRectangle();
+    std::cout << "[INFO] Processing chessboard." << std::endl;
 
-        // Screenshot timing.
-        start = std::chrono::high_resolution_clock::now();
-        cv::Mat screenshot = HWND2MAT(GetDesktopWindow());
-        end = std::chrono::high_resolution_clock::now();
-        duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-        std::cout << "[DEBUG] Screenshot function execution time: " << duration.count() << " milliseconds" << std::endl;
+    // Screenshot timing.
+    start = std::chrono::high_resolution_clock::now();
+    cv::Mat screenshot = HWND2MAT(GetDesktopWindow());
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-		cv::imwrite("debug_screenshot.jpg", screenshot);
+    if (screenshot.empty()) return 0;
 
-        if (screenshot.empty()) continue;
+    // Validate the chessboard in the click-defined region.
+    cv::Rect boardRect = GetBoardROI(screenshot, CLICKS.first, CLICKS.second);
 
-        // Validate the chessboard in the click-defined region.
-        if (drawn == 0) {
-            cv::Rect boardRect = GetBoardROI(screenshot, CLICKS.first, CLICKS.second);
+    auto result = ValidateChessboard(screenshot, boardRect, screenshot);
+    if (result) {
+        // Drawing the board on the overlay.
+        const cv::Rect& fixedRect = *result;
+        RECT r = { fixedRect.x, fixedRect.y, fixedRect.x + fixedRect.width, fixedRect.y + fixedRect.height };
+        SetBestRectangle(r);
+        PostMessage(hwndOverlay, WM_CHESSBOARD_DETECTED, NULL, NULL);
 
-            std::cout << "[DEBUG] Candidate rectangle at (" << boardRect.x << ", " << boardRect.y << ") with size (" << boardRect.width << "x" << boardRect.height << ")" << std::endl;
+        // Determining piece colors by sampling rooks.
+        double topLeftRook = SampleCellBrightness(screenshot, fixedRect, 0, 0); // TL.
+        double bottomLeftRook = SampleCellBrightness(screenshot, fixedRect, 7, 0); // BL.
 
-            auto result = ValidateChessboard(screenshot, boardRect, screenshot);
-            if (result) {
-                const cv::Rect& fixedRect = *result;
-                RECT r = { fixedRect.x, fixedRect.y, fixedRect.x + fixedRect.width, fixedRect.y + fixedRect.height };
-                SetBestRectangle(r);
-            }
+        std::cout << "[DEBUG] Top-left rook brightness: " << topLeftRook << std::endl;
+        std::cout << "[DEBUG] Bottom-left rook brightness: " << bottomLeftRook << std::endl;
 
-            PostMessage(hwndOverlay, WM_CHESSBOARD_CANDIDATES, NULL, NULL);
-
-            drawn = 1;
+        if (topLeftRook > bottomLeftRook) {
+            std::cout << "[INFO] White pieces are at the top." << std::endl;
         }
-        
-
-        std::cout << "Processed frame." << std::endl;
-
-        Sleep(1000);
+        else {
+            std::cout << "[INFO] Black pieces are at the top." << std::endl;
+        }
     }
+
+    std::cout << "[INFO] Processed chessboard." << std::endl;
+
+    // Retrieve the pieces.
+    
+    Sleep(500000000);
 
     return 0;
 }

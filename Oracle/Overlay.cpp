@@ -13,28 +13,16 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         FillRect(hdc, &ps.rcPaint, clearBrush);
         DeleteObject(clearBrush);
 
-        // [DEBUG] Draw chessboard.
         if ((g_bestRect.right - g_bestRect.left) > 0 && (g_bestRect.bottom - g_bestRect.top) > 0) {
             HBRUSH greenBrush = CreateSolidBrush(RGB(0, 255, 0));
             FrameRect(hdc, &g_bestRect, greenBrush);
             DeleteObject(greenBrush);
         }
         
-
         EndPaint(hwnd, &ps);
     } break;
 
-    case WM_CHESSBOARD_CANDIDATES: {
-        InvalidateRect(hwnd, NULL, TRUE);
-    } break;
-
-    case WM_CHESSBOARD_FOUND: {
-        int x = LOWORD(lParam);
-        int y = HIWORD(lParam);
-        int w = LOWORD(wParam);
-        int h = HIWORD(wParam);
-
-        g_bestRect = { x, y, x + w, y + h };
+    case WM_CHESSBOARD_DETECTED: {
         InvalidateRect(hwnd, NULL, TRUE);
     } break;
 
@@ -53,7 +41,6 @@ HWND CreateOverlayWindow(HINSTANCE hInstance, const LPCWSTR className, WNDPROC w
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = className;
-
     RegisterClass(&wc);
 
     HWND hwnd = CreateWindowEx(
