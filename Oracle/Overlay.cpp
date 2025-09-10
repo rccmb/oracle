@@ -1,7 +1,6 @@
 #include "Overlay.h"
 
-std::vector<RECT> g_candidateRects; // Chessboard candidate rectangles.
-RECT g_bestRect = { 0, 0, 0, 0 }; // Best chessboard candidate rectangle.
+RECT g_bestRect = { 0, 0, 0, 0 }; // Chessboard rectangle.
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
@@ -14,23 +13,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         FillRect(hdc, &ps.rcPaint, clearBrush);
         DeleteObject(clearBrush);
 
-		// [DEBUG] Draw candidates.
-        /*
-        HBRUSH redBrush = CreateSolidBrush(RGB(255, 0, 0));
-        for (const auto& r : g_candidateRects) {
-            FrameRect(hdc, &r, redBrush);
-        }
-        DeleteObject(redBrush);
-        */
-
         // [DEBUG] Draw chessboard.
-        /*
         if ((g_bestRect.right - g_bestRect.left) > 0 && (g_bestRect.bottom - g_bestRect.top) > 0) {
             HBRUSH greenBrush = CreateSolidBrush(RGB(0, 255, 0));
             FrameRect(hdc, &g_bestRect, greenBrush);
             DeleteObject(greenBrush);
         }
-        */
+        
 
         EndPaint(hwnd, &ps);
     } break;
@@ -81,14 +70,6 @@ HWND CreateOverlayWindow(HINSTANCE hInstance, const LPCWSTR className, WNDPROC w
     ShowWindow(hwnd, SW_SHOW);
 
     return hwnd;
-}
-
-void ClearCandidateRectangles() {
-    g_candidateRects.clear();
-}
-
-void AddCandidateRectangle(RECT rect) {
-    g_candidateRects.push_back(rect);
 }
 
 void ClearBestRectangle() {

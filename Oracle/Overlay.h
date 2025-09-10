@@ -33,18 +33,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 HWND CreateOverlayWindow(HINSTANCE hInstance, const LPCWSTR className, WNDPROC wndProc);
 
 /**
- * @brief Clears all stored candidate rectangles from the candidate list.
- */
-void ClearCandidateRectangles();
-
-/**
- * @brief Adds a candidate rectangle to the list of potential chessboard detections.
- * 
- * @param rect The bounding rectangle (in screen coordinates) to add as a candidate.
- */
-void AddCandidateRectangle(RECT rect);
-
-/**
  * @brief Clears the currently stored best (validated) rectangle.
  */
 void ClearBestRectangle();

@@ -5,15 +5,20 @@
 #include <iostream>
 #include <string>
 
-#include "Utils.h"
-#include "Overlay.h"
-#include "Vision.h"
+ #include "Utils.h"
+ #include "Overlay.h"
+ #include "Vision.h"
 
 int main() {
 	// Initialize overlay window.
     HINSTANCE hInstance = GetModuleHandle(NULL);
     const LPCWSTR className = L"Oracle Overlay";
     HWND hwndOverlay = CreateOverlayWindow(hInstance, className, WndProc);
+
+	// Get chessboard color coding.
+    HWND hwndDesktop = GetDesktopWindow();
+	std::pair<CLICK, CLICK> clicks = GetChessboardColorCoding(hwndDesktop);
+    SetChessboardClicks(clicks);
 
     // Create ChessboardDetectionThread.
     CreateThread(NULL, 0, ChessboardDetectionThread, hwndOverlay, 0, NULL);

@@ -1,5 +1,17 @@
 ﻿#include "Vision.h"
 
+std::pair<CLICK, CLICK> CLICKS;
+
+cv::Rect GetBoardROI(const cv::Mat& img, const CLICK& firstClick, const CLICK& secondClick) {
+    int width = std::abs(secondClick.x - firstClick.x);
+    int height = width;
+
+    int roi_x = firstClick.x;
+    int roi_y = firstClick.y;
+
+    return cv::Rect(roi_x, roi_y, width, height);
+}
+
 /**
  * @brief Validates if a given rectangle contains a chessboard pattern by checking intensity similarities at grid intersections.
  * 
@@ -7,143 +19,153 @@
  * @param rect Bounding rectangle of the candidate chessboard.
  * @param debugImg Output image for debug visualizations.
  * 
- * @return True if at least 50% of the checked intersections show valid matches, indicating a chessboard.
+ * @return A Rect containing the detected chessboard area if valid, or std::nullopt if not valid.
  */
-bool validateChessboard(const cv::Mat& gray, const cv::Rect& rect, cv::Mat& debugImg) {
-    int cellW = rect.width / 8;
-    int cellH = rect.height / 8;
+std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, const cv::Rect& roi, cv::Mat& debugImg) {
+    const int patchSize = 1;
+    const int stride = 2;
 
-    int correctCount = 0;
+    uchar colorA = CLICKS.first.grayscaleValue;
+    uchar colorB = CLICKS.second.grayscaleValue;
+    const int colorThreshold = 30; // Acceptable difference for color match.
+
+    std::vector<cv::Point> junctions;
     int totalChecks = 0;
+    int junctionsFound = 0;
 
-    const int patch_size = 4;
-    const int half = patch_size / 2;
-    const int offset = 4; // Offset from junction. 2 PIXEL DIFFERENCE FROM THE BORDER.
+    for (int y = roi.y; y < roi.y + roi.height; y += stride) {
+        if (junctionsFound == 7) break;
 
-    for (int row = 0; row < 7; row++) {
-        for (int col = 0; col < 7; col++) {
-            // Cell intersection coordinates.
-            int cornerX = rect.x + (col + 1) * cellW;
-            int cornerY = rect.y + (row + 1) * cellH;
+        for (int x = roi.x; x < roi.x + roi.width; x += stride) {
+            if (junctionsFound == 7) break;
 
-            cornerX = std::clamp(cornerX, offset + half, gray.cols - offset - half - 1);
-            cornerY = std::clamp(cornerY, offset + half, gray.rows - offset - half - 1);
+            int offset = 5;
+            std::vector<cv::Point> cell_centers = {
+                {x - offset, y - offset}, // TL.
+                {x + offset, y - offset}, // TR.
+                {x - offset, y + offset}, // BL.
+                {x + offset, y + offset}  // BR.
+            };
 
-            cv::Rect tl_patch(cornerX - offset - half, cornerY - offset - half, patch_size, patch_size);
-            cv::Rect tr_patch(cornerX + offset - half, cornerY - offset - half, patch_size, patch_size);
-            cv::Rect bl_patch(cornerX - offset - half, cornerY + offset - half, patch_size, patch_size);
-            cv::Rect br_patch(cornerX + offset - half, cornerY + offset - half, patch_size, patch_size);
+			std::cout << "[DEBUG] Checking junction at (" << x << ", " << y << ")\n";
 
-            // Adjust patches to stay within bounds.
-            tl_patch.width = std::min(tl_patch.width, gray.cols - tl_patch.x);
-            tl_patch.height = std::min(tl_patch.height, gray.rows - tl_patch.y);
-            tr_patch.width = std::min(tr_patch.width, gray.cols - tr_patch.x);
-            tr_patch.height = std::min(tr_patch.height, gray.rows - tr_patch.y);
-            bl_patch.width = std::min(bl_patch.width, gray.cols - bl_patch.x);
-            bl_patch.height = std::min(bl_patch.height, gray.rows - bl_patch.y);
-            br_patch.width = std::min(br_patch.width, gray.cols - br_patch.x);
-            br_patch.height = std::min(br_patch.height, gray.rows - br_patch.y);
-
-            // Skip small patches.
-            if (tl_patch.area() < patch_size * patch_size / 2 ||
-                tr_patch.area() < patch_size * patch_size / 2 ||
-                bl_patch.area() < patch_size * patch_size / 2 ||
-                br_patch.area() < patch_size * patch_size / 2) {
-                continue;
+            bool valid = true;
+            std::vector<double> avgs;
+            for (auto& pt : cell_centers) {
+                if (pt.x < 0 || pt.x >= gray.cols ||
+                    pt.y < 0 || pt.y >= gray.rows) {
+                    valid = false;
+                    break;
+                }
+                cv::Rect patch(pt.x, pt.y, patchSize, patchSize);
+                avgs.push_back(cv::mean(gray(patch))[0]);
             }
+            if (!valid) continue;
 
-            // Compute mean intensity of each patch
-            double avg_tl = cv::mean(gray(tl_patch))[0];
-            double avg_tr = cv::mean(gray(tr_patch))[0];
-            double avg_bl = cv::mean(gray(bl_patch))[0];
-            double avg_br = cv::mean(gray(br_patch))[0];
+            // Pattern 1: [A B; B A].
+            bool pattern1 =
+                std::abs(avgs[0] - colorA) < colorThreshold &&
+                std::abs(avgs[1] - colorB) < colorThreshold &&
+                std::abs(avgs[2] - colorB) < colorThreshold &&
+                std::abs(avgs[3] - colorA) < colorThreshold;
 
-            // Check if top-right matches bottom-left and top-left matches bottom-right.
-            if (std::abs(avg_tr - avg_bl) <= 30 && std::abs(avg_tl - avg_br) <= 30) {
-                correctCount++;
+            // Pattern 2: [B A; A B].
+            bool pattern2 =
+                std::abs(avgs[0] - colorB) < colorThreshold &&
+                std::abs(avgs[1] - colorA) < colorThreshold &&
+                std::abs(avgs[2] - colorA) < colorThreshold &&
+                std::abs(avgs[3] - colorB) < colorThreshold;
+
+            if (pattern1 || pattern2) {
+                junctions.emplace_back(x + offset - patchSize, y + offset - patchSize);
+				std::cout << "[DEBUG] Found junction at (" << x << ", " << y << ")\n";
+				x += offset * 2; // Skip ahead to avoid overlapping checks.
+                junctionsFound += 1;
             }
-
             totalChecks++;
-
-            // Debug: Draw intersection point and patches
-            /*
-            cv::circle(debugImg, cv::Point(cornerX, cornerY), 2, cv::Scalar(255, 0, 255), -1);
-            cv::rectangle(debugImg, tl_patch, cv::Scalar(255, 0, 0), 1); 
-            cv::rectangle(debugImg, tr_patch, cv::Scalar(0, 255, 0), 1);
-            cv::rectangle(debugImg, bl_patch, cv::Scalar(0, 0, 255), 1);
-            cv::rectangle(debugImg, br_patch, cv::Scalar(0, 255, 255), 1);
-            */
         }
     }
 
-    double ratio = totalChecks > 0 ? (double)correctCount / totalChecks : 0.0;
+    std::sort(junctions.begin(), junctions.end(), [](const cv::Point& a, const cv::Point& b) {
+        return (a.y < b.y) || (a.y == b.y && a.x < b.x);
+        });
 
-    // Debug: Save debug image if chessboard is detected
-    /*
-    if (ratio >= 0.5) {
-        cv::imwrite("debug_chessboard_" + std::to_string(std::time(nullptr)) + ".png", debugImg);
+    cv::Point topLeft = junctions.front();
+
+    // Estimate cell size by averaging distances between adjacent junctions in x and y.
+    std::vector<int> dx, dy;
+    for (size_t i = 1; i < junctions.size(); ++i) {
+        if (junctions[i].y == junctions[i - 1].y)
+            dx.push_back(junctions[i].x - junctions[i - 1].x);
+        if (junctions[i].x == junctions[i - 1].x)
+            dy.push_back(junctions[i].y - junctions[i - 1].y);
     }
-    */
 
-	return (ratio >= 0.5); // Need at least 50% correct intersections.
+    // A chessboard is a square.
+    int cellW = dx.empty() ? patchSize * 4 : std::accumulate(dx.begin(), dx.end(), 0) / (int)dx.size();
+
+    int board_x = topLeft.x - cellW;
+    int board_y = topLeft.y - cellW;
+    int board_w = cellW * 8;
+    int board_h = cellW * 8;
+
+    board_x = std::clamp(board_x, 0, gray.cols - board_w);
+    board_y = std::clamp(board_y, 0, gray.rows - board_h);
+
+    cv::Rect boardRect(board_x, board_y, board_w, board_h);
+    std::cout << "Detected board at (" << boardRect.x << ", " << boardRect.y << ") size (" << boardRect.width << "x" << boardRect.height << ")\n";
+    return boardRect;
 }
 
 DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
+    auto start = std::chrono::high_resolution_clock::now();
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
     HWND hwndOverlay = (HWND)param;
-    HWND hwndDesktop = GetDesktopWindow();
-    int frameId = 0;
+    int drawn = 0;
 
     while (true) {
-        ClearCandidateRectangles();
-		ClearBestRectangle();
+        // ClearBestRectangle();
 
-        cv::Mat screenshot = hwnd2mat(hwndDesktop);
+        // Screenshot timing.
+        start = std::chrono::high_resolution_clock::now();
+        cv::Mat screenshot = HWND2MAT(GetDesktopWindow());
+        end = std::chrono::high_resolution_clock::now();
+        duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+        std::cout << "[DEBUG] Screenshot function execution time: " << duration.count() << " milliseconds" << std::endl;
+
+		cv::imwrite("debug_screenshot.jpg", screenshot);
+
         if (screenshot.empty()) continue;
 
-        cv::Mat gray, blur, edges;
-        cv::cvtColor(screenshot, gray, cv::COLOR_BGR2GRAY);
-        cv::GaussianBlur(gray, blur, cv::Size(5, 5), 1.0);
+        // Validate the chessboard in the click-defined region.
+        if (drawn == 0) {
+            cv::Rect boardRect = GetBoardROI(screenshot, CLICKS.first, CLICKS.second);
 
-        double median = cv::mean(gray)[0]; 
-        double lowThreshold = std::max(20.0, median * 0.5);
-        double highThreshold = std::min(255.0, median * 1.5); 
-        cv::Canny(blur, edges, lowThreshold, highThreshold);
+            std::cout << "[DEBUG] Candidate rectangle at (" << boardRect.x << ", " << boardRect.y << ") with size (" << boardRect.width << "x" << boardRect.height << ")" << std::endl;
 
-        // Find the contours and order them by area. LARGEST TO SMALLEST.
-        std::vector<std::vector<cv::Point>> contours;
-        cv::findContours(edges, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-
-        std::sort(contours.begin(), contours.end(),
-            [](const std::vector<cv::Point>& a, const std::vector<cv::Point>& b) {
-                return cv::contourArea(a) > cv::contourArea(b);
-            });
-
-        for (auto& contour : contours) {
-            cv::Rect rect = cv::boundingRect(contour);
-            double area = rect.area();
-            double aspectRatio = (double)rect.width / rect.height;
-
-            if (area < 8392) continue;
-            double squareness = std::min(aspectRatio, 1.0 / aspectRatio);
-            if (squareness < 0.9) continue;
-
-            // Validate checkerboard.
-            if (validateChessboard(gray, rect, screenshot)) { 
-                RECT r = { rect.x, rect.y, rect.x + rect.width, rect.y + rect.height };
-				SetBestRectangle(r);
-                break;
+            auto result = ValidateChessboard(screenshot, boardRect, screenshot);
+            if (result) {
+                const cv::Rect& fixedRect = *result;
+                RECT r = { fixedRect.x, fixedRect.y, fixedRect.x + fixedRect.width, fixedRect.y + fixedRect.height };
+                SetBestRectangle(r);
             }
 
-            RECT r = { rect.x, rect.y, rect.x + rect.width, rect.y + rect.height };
-            AddCandidateRectangle(r);
-        }
+            PostMessage(hwndOverlay, WM_CHESSBOARD_CANDIDATES, NULL, NULL);
 
-        PostMessage(hwndOverlay, WM_CHESSBOARD_CANDIDATES, NULL, NULL);
+            drawn = 1;
+        }
+        
 
         std::cout << "Processed frame." << std::endl;
 
-        Sleep(1);
+        Sleep(1000);
     }
 
     return 0;
+}
+
+void SetChessboardClicks(std::pair<CLICK, CLICK> clicks) {
+	CLICKS = clicks;
 }
