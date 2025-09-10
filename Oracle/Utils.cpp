@@ -38,6 +38,19 @@ cv::Mat HWND2MAT(HWND hwnd) {
     return result; 
 }
 
+cv::Mat CropHWND2MAT(HWND hwnd, int x, int y, int width, int height) {
+    cv::Mat full = HWND2MAT(hwnd);
+    if (full.empty()) return cv::Mat();
+
+    x = std::clamp(x, 0, full.cols - 1);
+    y = std::clamp(y, 0, full.rows - 1);
+    width = std::min(width, full.cols - x);
+    height = std::min(height, full.rows - y);
+
+    cv::Rect roi(x, y, width, height);
+    return full(roi).clone();
+}
+
 std::pair<CLICK, CLICK> GetChessboardColorCoding(HWND hwnd) {
     std::cout << "Waiting for clicks..." << std::endl;
 

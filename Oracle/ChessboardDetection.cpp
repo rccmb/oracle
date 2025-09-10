@@ -136,27 +136,30 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
     HWND hwndOverlay = (HWND)param;
+	HWND hwndDesktop = GetDesktopWindow();
     int drawn = 0;
 
     std::cout << "[INFO] Processing chessboard." << std::endl;
 
     // Screenshot timing.
     start = std::chrono::high_resolution_clock::now();
-    cv::Mat screenshot = HWND2MAT(GetDesktopWindow());
+    cv::Mat screenshot = HWND2MAT(hwndDesktop);
     end = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
     if (screenshot.empty()) return 0;
 
-    // Validate the chessboard in the click-defined region.
-    cv::Rect boardRect = GetBoardROI(screenshot, CLICKS.first, CLICKS.second);
+    RECT bestRect;
 
-    auto result = ValidateChessboard(screenshot, boardRect, screenshot);
+    // Validate the chessboard in the click-defined region.
+    cv::Rect boardROI = GetBoardROI(screenshot, CLICKS.first, CLICKS.second);
+
+    auto result = ValidateChessboard(screenshot, boardROI, screenshot);
     if (result) {
         // Drawing the board on the overlay.
         const cv::Rect& fixedRect = *result;
-        RECT r = { fixedRect.x, fixedRect.y, fixedRect.x + fixedRect.width, fixedRect.y + fixedRect.height };
-        SetBestRectangle(r);
+        bestRect = { fixedRect.x, fixedRect.y, fixedRect.x + fixedRect.width, fixedRect.y + fixedRect.height };
+        SetBestRectangle(bestRect);
         PostMessage(hwndOverlay, WM_CHESSBOARD_DETECTED, NULL, NULL);
 
         // Determining piece colors by sampling rooks.
@@ -176,8 +179,43 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
 
     std::cout << "[INFO] Processed chessboard." << std::endl;
 
-    // Retrieve the pieces.
-    
+    // Retrieving piece images.
+    int cellWidth = (bestRect.right - bestRect.left) / 8;
+    int cellHeight = (bestRect.bottom - bestRect.top) / 8;
+
+    // Creating temporary directory for piece images.
+    LPCWSTR tempDir = L"temp"; // Pointer.
+    std::string tempDirStr = "temp"; // String.
+    RemoveDirectory(tempDir);
+    CreateDirectory(tempDir, NULL);
+
+    for (int i = 0; i < 5; ++i) {
+        int x = bestRect.left + i * cellWidth;
+        int y = bestRect.top;
+
+		std::cout << "[DEBUG] Capturing piece at (" << x << ", " << y << " with width " << cellWidth << " and height " << cellHeight << ")\n";
+        cv::Mat piece = CropHWND2MAT(hwndDesktop, x, y, cellWidth, cellHeight);
+
+        cv::Mat edges;
+        cv::Canny(piece, edges, 50, 150);
+
+        std::string filename = tempDirStr + "/piece_edges_row0_col" + std::to_string(i) + ".png";
+        cv::imwrite(filename, edges);
+
+        if (i == 4) {
+            // First cell of second row.
+            int x = bestRect.left;
+            int y = bestRect.top + cellHeight;
+            cv::Mat piece = CropHWND2MAT(hwndDesktop, x, y, cellWidth, cellHeight);
+
+            cv::Mat edges;
+            cv::Canny(piece, edges, 50, 150);
+
+            std::string filename = tempDirStr + "/piece_edges_row1_col0.png";
+            cv::imwrite(filename, edges);
+        }
+    }
+
     Sleep(500000000);
 
     return 0;

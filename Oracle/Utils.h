@@ -22,4 +22,8 @@ struct CLICK {
  */
 cv::Mat HWND2MAT(HWND hwnd);
 
+// TODO: Documentation.
+cv::Mat CropHWND2MAT(HWND hwnd, int x, int y, int width, int height);
+
+// TODO: Documentation.
 std::pair<CLICK, CLICK> GetChessboardColorCoding(HWND hwnd);

@@ -11,6 +11,8 @@
 #include <chrono>
 #include <vector>
 #include <numeric>
+#include <string>
+#include <filesystem>
 
 #include "Utils.h"
 #include "Overlay.h"
