@@ -5,87 +5,78 @@
 #include <iostream>
 #include <string>
 
-#include <d3d11.h>
-#include <dxgi.h>
-#include <d3dcompiler.h>
-
 #include "Utils.h"
 #include "Overlay.h"
 #include "ChessboardDetection.h"
-#include "ConfigurationWindow.h"
-
-#pragma comment(lib, "d3d11.lib")
-#pragma comment(lib, "dxgi.lib")
+#include "Direct3D.h"
+#include "Menu.h"
 
 static bool show_imgui_menu = false;
 
-ID3D11RenderTargetView* g_mainRenderTargetView = nullptr;
-ID3D11Device* g_pd3dDevice = nullptr;
-ID3D11DeviceContext* g_pd3dDeviceContext = nullptr;
-IDXGISwapChain* g_pSwapChain = nullptr;
+void RenderFrame() {
+    ImGui_ImplDX11_NewFrame();
+    ImGui_ImplWin32_NewFrame();
+    ImGui::NewFrame();
 
-bool CreateDeviceD3D(HWND hWnd)
-{
-    DXGI_SWAP_CHAIN_DESC sd = {};
-    sd.BufferCount = 2;
-    sd.BufferDesc.Width = 0;
-    sd.BufferDesc.Height = 0;
-    sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    sd.BufferDesc.RefreshRate.Numerator = 60;
-    sd.BufferDesc.RefreshRate.Denominator = 1;
-    sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    sd.OutputWindow = hWnd;
-    sd.SampleDesc.Count = 1;
-    sd.SampleDesc.Quality = 0;
-    sd.Windowed = TRUE;
-    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+    // Drawing the board rectangle.
+    if ((g_boardRect.right - g_boardRect.left) > 0 && (g_boardRect.bottom - g_boardRect.top) > 0) {
+        ImDrawList* draw_list = ImGui::GetBackgroundDrawList();
+        draw_list->AddRect(
+            ImVec2((float)g_boardRect.left, (float)g_boardRect.top),
+            ImVec2((float)g_boardRect.right, (float)g_boardRect.bottom),
+            IM_COL32(0, 255, 0, 255), 
+            0.0f, 
+            0,   
+            1.0f 
+        );
+    }
 
-    UINT createDeviceFlags = 0;
-    D3D_FEATURE_LEVEL featureLevel;
-    const D3D_FEATURE_LEVEL featureLevelArray[1] = { D3D_FEATURE_LEVEL_11_0 };
-    HRESULT res = D3D11CreateDeviceAndSwapChain(
-        nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, createDeviceFlags, featureLevelArray, 1,
-        D3D11_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice, &featureLevel, &g_pd3dDeviceContext);
+    ImDrawList* draw_list = ImGui::GetBackgroundDrawList();
+    for (const SAMPLE& s : g_debugSamples) {
+        draw_list->AddRectFilled(
+            ImVec2((float)s.x, (float)s.y),
+            ImVec2((float)(s.x + s.width), (float)(s.y + s.height)),
+            IM_COL32(255, 0, 0, 128) // Semi-transparent red
+        );
+        // Optionally, add a border:
+        draw_list->AddRect(
+            ImVec2((float)s.x, (float)s.y),
+            ImVec2((float)(s.x + s.width), (float)(s.y + s.height)),
+            IM_COL32(255, 0, 0, 255), // Opaque red border
+            0.0f, 0, 1.0f
+        );
+    }
 
-    return SUCCEEDED(res);
-}
+    if (show_imgui_menu) {
+        ShowMenu(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
+    }
 
-void CreateRenderTarget()
-{
-    ID3D11Texture2D* pBackBuffer = nullptr;
-    g_pSwapChain->GetBuffer(0, IID_PPV_ARGS(&pBackBuffer));
-    g_pd3dDevice->CreateRenderTargetView(pBackBuffer, NULL, &g_mainRenderTargetView);
-    pBackBuffer->Release();
-}
+    ImGui::Render();
 
-void CleanupRenderTarget()
-{
-    if (g_mainRenderTargetView) { g_mainRenderTargetView->Release(); g_mainRenderTargetView = nullptr; }
+    const float clear_color[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    g_pd3dDeviceContext->OMSetRenderTargets(1, &g_mainRenderTargetView, NULL);
+    g_pd3dDeviceContext->ClearRenderTargetView(g_mainRenderTargetView, clear_color);
+    ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+    g_pSwapChain->Present(1, 0);
 }
 
 int main() {
-	// Creating windows.
+	// Creating overlay.
     HINSTANCE hInstance = GetModuleHandle(NULL);
-
     const LPCWSTR className = L"Oracle Overlay";
-
     HWND hwndOverlay = CreateOverlayWindow(hInstance, className);
 
-    // After window creation
+	// Creating the Direct3D device.
     if (!CreateDeviceD3D(hwndOverlay)) {
         MessageBox(NULL, L"Failed to create D3D11 device!", L"Error", MB_OK);
         return 1;
     }
 
+    // Creating the render target.
     CreateRenderTarget();
 
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    ImGui_ImplWin32_Init(hwndOverlay);
-    ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
-    ImGui::StyleColorsDark();
+    // Initializing ImGui.
+    InitializeImGui(hwndOverlay, g_pd3dDevice, g_pd3dDeviceContext);
 
 	// Get chessboard color coding.
     HWND hwndDesktop = GetDesktopWindow();
@@ -97,7 +88,7 @@ int main() {
 
     MSG msg = {};
     while (true) {
-		// LCONTROL + F1 to toggle menu.
+		// Toggle ImGui menu. LCONTROL + F1 to enable/disable.
         if ((GetAsyncKeyState(VK_LCONTROL) & 0x8000) && 
             (GetAsyncKeyState(VK_F1) & 0x8000)) {
 
@@ -116,6 +107,7 @@ int main() {
             Sleep(100);
         }
 
+		// Handle Windows messages.
         while (PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE)) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
@@ -123,32 +115,14 @@ int main() {
                 return 0;
         }
 
-        ImGui_ImplDX11_NewFrame();
-        ImGui_ImplWin32_NewFrame();
-        ImGui::NewFrame();
-
-        if (show_imgui_menu) {
-            ShowDebugROIWindow(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
-        }
-
-        ImGui::Render();
-        const float clear_color[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-        g_pd3dDeviceContext->OMSetRenderTargets(1, &g_mainRenderTargetView, NULL);
-        g_pd3dDeviceContext->ClearRenderTargetView(g_mainRenderTargetView, clear_color);
-        ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-        g_pSwapChain->Present(1, 0); // Present with vsync
+        // New frame.
+        RenderFrame();
 
         Sleep(10);
     }
 
-    ImGui_ImplDX11_Shutdown();
-    ImGui_ImplWin32_Shutdown();
-    ImGui::DestroyContext();
-
-    CleanupRenderTarget();
-    if (g_pSwapChain) { g_pSwapChain->Release(); g_pSwapChain = nullptr; }
-    if (g_pd3dDeviceContext) { g_pd3dDeviceContext->Release(); g_pd3dDeviceContext = nullptr; }
-    if (g_pd3dDevice) { g_pd3dDevice->Release(); g_pd3dDevice = nullptr; }
+    CleanupImGui();
+	CleanupDirect3D();
 
     return 0;
 }

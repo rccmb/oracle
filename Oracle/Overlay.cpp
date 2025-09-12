@@ -1,9 +1,5 @@
 #include "Overlay.h"
 
-RECT g_boardRect = { 0, 0, 0, 0 }; // Chessboard rectangle.
-
-std::vector<SAMPLE> g_debugSamples;
-
 // ImGui parameters for debugging ROI selection.
 int g_debugROI_x = 0;
 int g_debugROI_y = 0;
@@ -21,27 +17,9 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
 
-        // Clean previous.
         HBRUSH clearBrush = CreateSolidBrush(RGB(0, 0, 0));
         FillRect(hdc, &ps.rcPaint, clearBrush);
         DeleteObject(clearBrush);
-
-        if ((g_boardRect.right - g_boardRect.left) > 0 && (g_boardRect.bottom - g_boardRect.top) > 0) {
-            HBRUSH greenBrush = CreateSolidBrush(RGB(0, 255, 0));
-            FrameRect(hdc, &g_boardRect, greenBrush);
-            DeleteObject(greenBrush);
-        }
-
-		// Draw debug points.
-        if (!g_debugSamples.empty()) {
-            HBRUSH redBrush = CreateSolidBrush(RGB(255, 0, 0));
-            for (SAMPLE s : g_debugSamples) {
-                std::cout << "[DEBUG] Drawing sample at (" << s.x << ", " << s.y << ") size (" << s.width << "x" << s.height << ")\n";
-                RECT r = { s.x, s.y, s.x + s.width, s.y + s.height };
-                FillRect(hdc, &r, redBrush);
-            }
-            DeleteObject(redBrush);
-        }
         
         EndPaint(hwnd, &ps);
     } break;
@@ -81,16 +59,4 @@ HWND CreateOverlayWindow(HINSTANCE hInstance, const LPCWSTR className) {
     ShowWindow(hwnd, SW_SHOW);
 
     return hwnd;
-}
-
-void AddDebugSample(SAMPLE sample) {
-    g_debugSamples.push_back(sample);
-}
-
-void ClearboardRectangle() {
-    g_boardRect = { 0, 0, 0, 0 };
-}
-
-void SetboardRectangle(RECT rect) {
-    g_boardRect = rect;
 }

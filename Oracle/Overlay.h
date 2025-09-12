@@ -13,13 +13,6 @@ extern int g_debugROI_y;
 extern int g_debugPatchSize;
 extern int g_debugOffset;
 
-struct SAMPLE {
-    int x;
-    int y;
-    int width;
-    int height;
-};
-
 /**
  * @brief Window procedure to handle messages for the overlay window.
  *
@@ -41,17 +34,3 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
  * @return HWND Handle to the created window, or NULL if creation fails.
  */
 HWND CreateOverlayWindow(HINSTANCE hInstance, const LPCWSTR className);
-
-void AddDebugSample(SAMPLE sample);
-
-/**
- * @brief Clears the currently stored best (validated) rectangle.
- */
-void ClearboardRectangle();
-
-/**
- * @brief Sets the best (validated) rectangle for the current detection.
- * 
- * @param rect The validated bounding rectangle (in screen coordinates) to set as the best detection.
- */
-void SetboardRectangle(RECT rect);

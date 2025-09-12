@@ -130,7 +130,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="ConfigurationWindow.cpp" />
+    <ClCompile Include="Direct3D.cpp" />
+    <ClCompile Include="Menu.cpp" />
     <ClCompile Include="ImGui\imgui.cpp" />
     <ClCompile Include="ImGui\imgui_demo.cpp" />
     <ClCompile Include="ImGui\imgui_draw.cpp" />
@@ -144,7 +145,8 @@
     <ClCompile Include="ChessboardDetection.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ConfigurationWindow.h" />
+    <ClInclude Include="Direct3D.h" />
+    <ClInclude Include="Menu.h" />
     <ClInclude Include="ImGui\imconfig.h" />
     <ClInclude Include="ImGui\imgui.h" />
     <ClInclude Include="ImGui\imgui_impl_dx11.h" />

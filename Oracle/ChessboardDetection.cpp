@@ -2,6 +2,9 @@
 
 std::pair<CLICK, CLICK> CLICKS;
 
+RECT g_boardRect = { 0, 0, 0, 0 };
+std::vector<SAMPLE> g_debugSamples;
+
 /**
  * @brief Validates if a given rectangle contains a chessboard pattern by checking intensity similarities at grid intersections.
  * 
@@ -99,9 +102,9 @@ std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, const cv::Rect& 
     board_x = std::clamp(board_x, 0, gray.cols - board_w);
     board_y = std::clamp(board_y, 0, gray.rows - board_h);
 
-    cv::Rect boardRect(board_x, board_y, board_w, board_h);
-    std::cout << "[INFO] Detected board at (" << boardRect.x << ", " << boardRect.y << ") size (" << boardRect.width << "x" << boardRect.height << ")\n";
-    return boardRect;
+    cv::Rect g_boardRect(board_x, board_y, board_w, board_h);
+    std::cout << "[INFO] Detected board at (" << g_boardRect.x << ", " << g_boardRect.y << ") size (" << g_boardRect.width << "x" << g_boardRect.height << ")\n";
+    return g_boardRect;
 }
 
 // HELPERS.
@@ -118,43 +121,25 @@ cv::Rect GetBoardROI(const cv::Mat& img, const CLICK& firstClick, const CLICK& s
 }
 
 // TODO: Document.
-//double SampleCellCenter(const cv::Mat& gray, int x, int y, int patch = 6, int offset = 0) {
-//    patch = 6;
-//
-//    int half = patch / 2;
-//
-//	int startingX = x - half;
-//	int startingY = y - half + offset;
-//
-//    cv::Rect roi(startingX, startingY, patch, patch);
-//    roi &= cv::Rect(0, 0, gray.cols, gray.rows);
-//
-//    SAMPLE sample;
-//    sample.x = startingX;
-//    sample.y = startingY;
-//	sample.width = patch;
-//    sample.height = patch;
-//    AddDebugSample(sample);
-//
-//	std::cout << "[DEBUG] Sampling cell center at (" << x << ", " << y << ") with patch size " << patch << " and offset " << offset << " resulting in ROI (" << roi.x << ", " << roi.y << ", " << roi.width << ", " << roi.height << ")\n";
-//
-//    return cv::mean(gray(roi))[0];
-//}
+double SampleCellCenter(const cv::Mat& gray, int x, int y, int patch = 6, int offset = 0) {
+    patch = 6;
 
-double SampleCellCenter(const cv::Mat& gray, int x, int y, int a, int b) {
-    int half = g_debugPatchSize / 2;
-    int startingX = g_debugROI_x - half;
-    int startingY = g_debugROI_y - half + g_debugOffset;
+    int half = patch / 2;
 
-    cv::Rect roi(startingX, startingY, g_debugPatchSize, g_debugPatchSize);
+	int startingX = x - half;
+	int startingY = y - half + offset;
+
+    cv::Rect roi(startingX, startingY, patch, patch);
     roi &= cv::Rect(0, 0, gray.cols, gray.rows);
 
     SAMPLE sample;
     sample.x = startingX;
     sample.y = startingY;
-    sample.width = g_debugPatchSize;
-    sample.height = g_debugPatchSize;
-    AddDebugSample(sample);
+	sample.width = patch;
+    sample.height = patch;
+	g_debugSamples.push_back(sample);
+
+	std::cout << "[DEBUG] Sampling cell center at (" << x << ", " << y << ") with patch size " << patch << " and offset " << offset << " resulting in ROI (" << roi.x << ", " << roi.y << ", " << roi.width << ", " << roi.height << ")\n";
 
     return cv::mean(gray(roi))[0];
 }
@@ -194,8 +179,7 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
 
     if (screenshot.empty()) return 0;
 
-    RECT boardRect;
-	cv::Rect boardRectCV;
+	cv::Rect g_boardRectCV;
 
     // Validate the chessboard in the click-defined region.
     cv::Rect boardROI = GetBoardROI(screenshot, CLICKS.first, CLICKS.second);
@@ -204,29 +188,28 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
     if (result) {
         // Drawing the board on the overlay.
         const cv::Rect& fixedRect = *result;
-        boardRect = { fixedRect.x, fixedRect.y, fixedRect.x + fixedRect.width, fixedRect.y + fixedRect.height };
-		boardRectCV = fixedRect;
-        SetboardRectangle(boardRect);
+        g_boardRect = { fixedRect.x, fixedRect.y, fixedRect.x + fixedRect.width, fixedRect.y + fixedRect.height };
+		g_boardRectCV = fixedRect;
     }
     else {
         return 0;
     }
 
     // Board dimensions.
-	int boardWidth = boardRect.right - boardRect.left;
-	int boardHeight = boardRect.bottom - boardRect.top;
-    int cellWidth = (boardRect.right - boardRect.left) / 8;
-    int cellHeight = (boardRect.bottom - boardRect.top) / 8;
+	int boardWidth = g_boardRect.right - g_boardRect.left;
+	int boardHeight = g_boardRect.bottom - g_boardRect.top;
+    int cellWidth = (g_boardRect.right - g_boardRect.left) / 8;
+    int cellHeight = (g_boardRect.bottom - g_boardRect.top) / 8;
 
     // Determining piece colors by sampling rooks.
     double refTL = SampleCellCenter(screenshot, 
-        boardRect.left + (cellWidth / 2), 
-        boardRect.top + cellHeight / 2,
+        g_boardRect.left + (cellWidth / 2), 
+        g_boardRect.top + cellHeight / 2,
         2,
         10); // TL.
     double refBL = SampleCellCenter(screenshot, 
-        boardRect.left + (cellWidth / 2), 
-        boardRect.top + (7 * cellHeight) + (cellHeight / 2),
+        g_boardRect.left + (cellWidth / 2), 
+        g_boardRect.top + (7 * cellHeight) + (cellHeight / 2),
         2,
         10); // BL.
 
@@ -252,8 +235,8 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
     CreateDirectory(tempDir, NULL);
 
     for (int i = 0; i < 5; ++i) {
-        int x = boardRect.left + i * cellWidth;
-        int y = boardRect.top;
+        int x = g_boardRect.left + i * cellWidth;
+        int y = g_boardRect.top;
 
 		std::cout << "[DEBUG] Capturing piece at (" << x << ", " << y << " with width " << cellWidth << " and height " << cellHeight << ")\n";
         cv::Mat piece = CropHWND2MAT(hwndDesktop, x, y, cellWidth, cellHeight);
@@ -266,8 +249,8 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
 
         if (i == 4) {
             // First cell of second row.
-            int x = boardRect.left;
-            int y = boardRect.top + cellHeight;
+            int x = g_boardRect.left;
+            int y = g_boardRect.top + cellHeight;
             cv::Mat piece = CropHWND2MAT(hwndDesktop, x, y, cellWidth, cellHeight);
 
             cv::Mat edges;
@@ -302,8 +285,8 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
         for (int row = 0; row < 8; ++row) {
             int emptyCount = 0;
             for (int col = 0; col < 8; ++col) {
-                int cx = boardRect.left + (col * cellWidth) + (cellWidth / 2);
-                int cy = boardRect.top + (row * cellHeight) + (cellHeight / 2);
+                int cx = g_boardRect.left + (col * cellWidth) + (cellWidth / 2);
+                int cy = g_boardRect.top + (row * cellHeight) + (cellHeight / 2);
 
                 double val = SampleCellCenter(frame, cx, cy, 2, 10);
 
@@ -329,8 +312,8 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
 
                     // Crop, edge, and match.
                     cv::Mat crop = CropHWND2MAT(hwndDesktop, 
-                        boardRect.left + col * cellWidth, 
-                        boardRect.top + row * cellHeight, 
+                        g_boardRect.left + col * cellWidth, 
+                        g_boardRect.top + row * cellHeight, 
                         cellWidth, 
                         cellHeight);
                     cv::Mat edges;

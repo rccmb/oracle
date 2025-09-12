@@ -25,6 +25,9 @@
     <Filter Include="Source Files\Helpers">
       <UniqueIdentifier>{3aed0934-ca2a-430f-8dc7-7120313a36b8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\D3D">
+      <UniqueIdentifier>{469b4adb-ac96-486a-a88f-24c2ec984051}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -36,7 +39,7 @@
     <ClCompile Include="ChessboardDetection.cpp">
       <Filter>Source Files\Logic</Filter>
     </ClCompile>
-    <ClCompile Include="ConfigurationWindow.cpp">
+    <ClCompile Include="Menu.cpp">
       <Filter>Source Files\Views</Filter>
     </ClCompile>
     <ClCompile Include="ImGui\imgui_impl_win32.cpp">
@@ -63,6 +66,9 @@
     <ClCompile Include="Utils.cpp">
       <Filter>Source Files\Helpers</Filter>
     </ClCompile>
+    <ClCompile Include="Direct3D.cpp">
+      <Filter>Source Files\D3D</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Overlay.h">
@@ -71,7 +77,7 @@
     <ClInclude Include="ChessboardDetection.h">
       <Filter>Source Files\Logic</Filter>
     </ClInclude>
-    <ClInclude Include="ConfigurationWindow.h">
+    <ClInclude Include="Menu.h">
       <Filter>Source Files\Views</Filter>
     </ClInclude>
     <ClInclude Include="ImGui\imgui_impl_dx11.h">
@@ -100,6 +106,9 @@
     </ClInclude>
     <ClInclude Include="Utils.h">
       <Filter>Source Files\Helpers</Filter>
+    </ClInclude>
+    <ClInclude Include="Direct3D.h">
+      <Filter>Source Files\D3D</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

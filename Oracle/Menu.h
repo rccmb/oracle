@@ -6,10 +6,14 @@
 #include <iostream>
 #include <string>
 
+#include "Overlay.h"
+
 #include "imgui.h"
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
 
-void ShowDebugROIWindow(int imageWidth, int imageHeight);
+void ShowMenu(int imageWidth, int imageHeight);
 
-HWND CreateImGuiWindow(HINSTANCE hInstance, const LPCWSTR className);
+void InitializeImGui(HWND hwndOverlay, ID3D11Device* device, ID3D11DeviceContext* deviceContext);
+
+void CleanupImGui();

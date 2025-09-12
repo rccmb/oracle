@@ -16,7 +16,16 @@
 
 #include "Utils.h"
 #include "Overlay.h"
-#include "ConfigurationWindow.h"
+
+struct SAMPLE {
+    int x;
+    int y;
+    int width;
+    int height;
+};
+
+extern RECT g_boardRect;
+extern std::vector<SAMPLE> g_debugSamples;
 
 /**
  * @brief Thread function that continuously detects a chessboard on the desktop and sends its position/size to an overlay window.

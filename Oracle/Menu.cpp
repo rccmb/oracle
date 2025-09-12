@@ -1,7 +1,7 @@
-#include "ConfigurationWindow.h"
-#include "Overlay.h"
+#include "Menu.h"
 
-void ShowDebugROIWindow(int imageWidth, int imageHeight) {
+
+void ShowMenu(int imageWidth, int imageHeight) {
     // Static variable to control ImGui window open/close state
     static bool show_window = true;
 
@@ -21,4 +21,19 @@ void ShowDebugROIWindow(int imageWidth, int imageHeight) {
     ImGui::SliderInt("Offset", &g_debugOffset, -32, 32);
 
     ImGui::End();
+}
+
+void InitializeImGui(HWND hwndOverlay, ID3D11Device* device, ID3D11DeviceContext* deviceContext) {
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGui_ImplWin32_Init(hwndOverlay);
+    ImGui_ImplDX11_Init(device, deviceContext);
+    ImGui::StyleColorsDark();
+}
+
+void CleanupImGui() {
+    ImGui_ImplDX11_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
 }
