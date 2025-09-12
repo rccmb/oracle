@@ -17,6 +17,8 @@
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 
+static bool show_imgui_menu = false;
+
 ID3D11RenderTargetView* g_mainRenderTargetView = nullptr;
 ID3D11Device* g_pd3dDevice = nullptr;
 ID3D11DeviceContext* g_pd3dDeviceContext = nullptr;
@@ -67,13 +69,11 @@ int main() {
     HINSTANCE hInstance = GetModuleHandle(NULL);
 
     const LPCWSTR className = L"Oracle Overlay";
-    const LPCWSTR imguiClassName = L"ImGui Debug";
 
     HWND hwndOverlay = CreateOverlayWindow(hInstance, className);
-    HWND hwndImGui = CreateImGuiWindow(hInstance, imguiClassName);
 
     // After window creation
-    if (!CreateDeviceD3D(hwndImGui)) {
+    if (!CreateDeviceD3D(hwndOverlay)) {
         MessageBox(NULL, L"Failed to create D3D11 device!", L"Error", MB_OK);
         return 1;
     }
@@ -83,7 +83,7 @@ int main() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
-    ImGui_ImplWin32_Init(hwndImGui);
+    ImGui_ImplWin32_Init(hwndOverlay);
     ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
     ImGui::StyleColorsDark();
 
@@ -97,6 +97,25 @@ int main() {
 
     MSG msg = {};
     while (true) {
+		// LCONTROL + F1 to toggle menu.
+        if ((GetAsyncKeyState(VK_LCONTROL) & 0x8000) && 
+            (GetAsyncKeyState(VK_F1) & 0x8000)) {
+
+            show_imgui_menu = !show_imgui_menu;
+
+			// Enable/disable click-through.
+            LONG_PTR exStyle = GetWindowLongPtr(hwndOverlay, GWL_EXSTYLE);
+            if (show_imgui_menu) {
+                SetWindowLongPtr(hwndOverlay, GWL_EXSTYLE, exStyle & ~(WS_EX_TRANSPARENT | WS_EX_NOACTIVATE));
+                SetForegroundWindow(hwndOverlay);
+            }
+            else {
+                SetWindowLongPtr(hwndOverlay, GWL_EXSTYLE, exStyle | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE);
+            }
+
+            Sleep(100);
+        }
+
         while (PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE)) {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
@@ -108,10 +127,12 @@ int main() {
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
-        ShowDebugROIWindow(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
+        if (show_imgui_menu) {
+            ShowDebugROIWindow(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
+        }
 
         ImGui::Render();
-        const float clear_color[4] = { 0.1f, 0.1f, 0.1f, 1.0f };
+        const float clear_color[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
         g_pd3dDeviceContext->OMSetRenderTargets(1, &g_mainRenderTargetView, NULL);
         g_pd3dDeviceContext->ClearRenderTargetView(g_mainRenderTargetView, clear_color);
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());

@@ -10,7 +10,12 @@ int g_debugROI_y = 0;
 int g_debugPatchSize = 6;
 int g_debugOffset = 0;
 
+extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam))
+        return true;
+
     switch (msg) {
     case WM_PAINT: {
         PAINTSTRUCT ps;
