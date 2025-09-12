@@ -16,6 +16,7 @@
 
 #include "Utils.h"
 #include "Overlay.h"
+#include "ConfigurationWindow.h"
 
 /**
  * @brief Thread function that continuously detects a chessboard on the desktop and sends its position/size to an overlay window.

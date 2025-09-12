@@ -13,30 +13,93 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Source Files\Views">
+      <UniqueIdentifier>{cf2e50be-7c23-4171-8c97-8d1972622f67}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Logic">
+      <UniqueIdentifier>{02612a92-8922-4c6a-abf2-01051fc0373d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\ImGui">
+      <UniqueIdentifier>{b6da1ddb-de1b-4faf-9a01-326d33ec90c5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Helpers">
+      <UniqueIdentifier>{3aed0934-ca2a-430f-8dc7-7120313a36b8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Utils.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Overlay.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Views</Filter>
     </ClCompile>
     <ClCompile Include="ChessboardDetection.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Logic</Filter>
+    </ClCompile>
+    <ClCompile Include="ConfigurationWindow.cpp">
+      <Filter>Source Files\Views</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_impl_win32.cpp">
+      <Filter>Source Files\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_tables.cpp">
+      <Filter>Source Files\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_widgets.cpp">
+      <Filter>Source Files\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui.cpp">
+      <Filter>Source Files\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_demo.cpp">
+      <Filter>Source Files\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_draw.cpp">
+      <Filter>Source Files\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_impl_dx11.cpp">
+      <Filter>Source Files\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils.cpp">
+      <Filter>Source Files\Helpers</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Utils.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Overlay.h">
-      <Filter>Header Files</Filter>
+      <Filter>Source Files\Views</Filter>
     </ClInclude>
     <ClInclude Include="ChessboardDetection.h">
-      <Filter>Header Files</Filter>
+      <Filter>Source Files\Logic</Filter>
+    </ClInclude>
+    <ClInclude Include="ConfigurationWindow.h">
+      <Filter>Source Files\Views</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imgui_impl_dx11.h">
+      <Filter>Source Files\ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imgui_impl_win32.h">
+      <Filter>Source Files\ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imgui_internal.h">
+      <Filter>Source Files\ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imstb_rectpack.h">
+      <Filter>Source Files\ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imstb_textedit.h">
+      <Filter>Source Files\ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imstb_truetype.h">
+      <Filter>Source Files\ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imconfig.h">
+      <Filter>Source Files\ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imgui.h">
+      <Filter>Source Files\ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils.h">
+      <Filter>Source Files\Helpers</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -2,16 +2,6 @@
 
 std::pair<CLICK, CLICK> CLICKS;
 
-cv::Rect GetBoardROI(const cv::Mat& img, const CLICK& firstClick, const CLICK& secondClick) {
-    int width = std::abs(secondClick.x - firstClick.x);
-    int height = width;
-
-    int roi_x = firstClick.x;
-    int roi_y = firstClick.y;
-
-    return cv::Rect(roi_x, roi_y, width, height);
-}
-
 /**
  * @brief Validates if a given rectangle contains a chessboard pattern by checking intensity similarities at grid intersections.
  * 
@@ -114,20 +104,78 @@ std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, const cv::Rect& 
     return boardRect;
 }
 
-double SampleCellBrightness(const cv::Mat& gray, const cv::Rect& board, int row, int col) {
-    int cellW = board.width / 8;
-    int cellH = board.height / 8;
+// HELPERS.
 
-    cv::Point center(
-        board.x + col * cellW + cellW / 2,
-        board.y + row * cellH + cellH / 2
-    );
+// TODO: Document.
+cv::Rect GetBoardROI(const cv::Mat& img, const CLICK& firstClick, const CLICK& secondClick) {
+    int width = std::abs(secondClick.x - firstClick.x);
+    int height = width;
 
-    int radius = std::min(cellW, cellH) / 4; 
-    cv::Rect roi(center.x - radius, center.y - radius, radius * 2, radius * 2);
+    int roi_x = firstClick.x;
+    int roi_y = firstClick.y;
+
+    return cv::Rect(roi_x, roi_y, width, height);
+}
+
+// TODO: Document.
+//double SampleCellCenter(const cv::Mat& gray, int x, int y, int patch = 6, int offset = 0) {
+//    patch = 6;
+//
+//    int half = patch / 2;
+//
+//	int startingX = x - half;
+//	int startingY = y - half + offset;
+//
+//    cv::Rect roi(startingX, startingY, patch, patch);
+//    roi &= cv::Rect(0, 0, gray.cols, gray.rows);
+//
+//    SAMPLE sample;
+//    sample.x = startingX;
+//    sample.y = startingY;
+//	sample.width = patch;
+//    sample.height = patch;
+//    AddDebugSample(sample);
+//
+//	std::cout << "[DEBUG] Sampling cell center at (" << x << ", " << y << ") with patch size " << patch << " and offset " << offset << " resulting in ROI (" << roi.x << ", " << roi.y << ", " << roi.width << ", " << roi.height << ")\n";
+//
+//    return cv::mean(gray(roi))[0];
+//}
+
+double SampleCellCenter(const cv::Mat& gray, int x, int y, int a, int b) {
+    int half = g_debugPatchSize / 2;
+    int startingX = g_debugROI_x - half;
+    int startingY = g_debugROI_y - half + g_debugOffset;
+
+    cv::Rect roi(startingX, startingY, g_debugPatchSize, g_debugPatchSize);
     roi &= cv::Rect(0, 0, gray.cols, gray.rows);
 
+    SAMPLE sample;
+    sample.x = startingX;
+    sample.y = startingY;
+    sample.width = g_debugPatchSize;
+    sample.height = g_debugPatchSize;
+    AddDebugSample(sample);
+
     return cv::mean(gray(roi))[0];
+}
+
+// TODO: Document.
+double CompareEdges(const cv::Mat& a, const cv::Mat& b) {
+    if (a.size() != b.size()) return 1e9;
+    cv::Mat diff;
+    cv::absdiff(a, b, diff);
+    return cv::sum(diff)[0];
+}
+
+// TODO: Document.
+std::map<std::string, cv::Mat> LoadReferencePieces(LPCWSTR tempDir) {
+    std::map<std::string, cv::Mat> refs;
+    for (const auto& entry : std::filesystem::directory_iterator(tempDir)) {
+        if (entry.path().extension() == ".png") {
+            refs[entry.path().stem().string()] = cv::imread(entry.path().string(), cv::IMREAD_GRAYSCALE);
+        }
+    }
+    return refs;
 }
 
 DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
@@ -142,14 +190,12 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
     std::cout << "[INFO] Processing chessboard." << std::endl;
 
     // Screenshot timing.
-    start = std::chrono::high_resolution_clock::now();
     cv::Mat screenshot = HWND2MAT(hwndDesktop);
-    end = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
     if (screenshot.empty()) return 0;
 
-    RECT bestRect;
+    RECT boardRect;
+	cv::Rect boardRectCV;
 
     // Validate the chessboard in the click-defined region.
     cv::Rect boardROI = GetBoardROI(screenshot, CLICKS.first, CLICKS.second);
@@ -158,30 +204,46 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
     if (result) {
         // Drawing the board on the overlay.
         const cv::Rect& fixedRect = *result;
-        bestRect = { fixedRect.x, fixedRect.y, fixedRect.x + fixedRect.width, fixedRect.y + fixedRect.height };
-        SetBestRectangle(bestRect);
-        PostMessage(hwndOverlay, WM_CHESSBOARD_DETECTED, NULL, NULL);
-
-        // Determining piece colors by sampling rooks.
-        double topLeftRook = SampleCellBrightness(screenshot, fixedRect, 0, 0); // TL.
-        double bottomLeftRook = SampleCellBrightness(screenshot, fixedRect, 7, 0); // BL.
-
-        std::cout << "[DEBUG] Top-left rook brightness: " << topLeftRook << std::endl;
-        std::cout << "[DEBUG] Bottom-left rook brightness: " << bottomLeftRook << std::endl;
-
-        if (topLeftRook > bottomLeftRook) {
-            std::cout << "[INFO] White pieces are at the top." << std::endl;
-        }
-        else {
-            std::cout << "[INFO] Black pieces are at the top." << std::endl;
-        }
+        boardRect = { fixedRect.x, fixedRect.y, fixedRect.x + fixedRect.width, fixedRect.y + fixedRect.height };
+		boardRectCV = fixedRect;
+        SetboardRectangle(boardRect);
+    }
+    else {
+        return 0;
     }
 
-    std::cout << "[INFO] Processed chessboard." << std::endl;
+    // Board dimensions.
+	int boardWidth = boardRect.right - boardRect.left;
+	int boardHeight = boardRect.bottom - boardRect.top;
+    int cellWidth = (boardRect.right - boardRect.left) / 8;
+    int cellHeight = (boardRect.bottom - boardRect.top) / 8;
 
-    // Retrieving piece images.
-    int cellWidth = (bestRect.right - bestRect.left) / 8;
-    int cellHeight = (bestRect.bottom - bestRect.top) / 8;
+    // Determining piece colors by sampling rooks.
+    double refTL = SampleCellCenter(screenshot, 
+        boardRect.left + (cellWidth / 2), 
+        boardRect.top + cellHeight / 2,
+        2,
+        10); // TL.
+    double refBL = SampleCellCenter(screenshot, 
+        boardRect.left + (cellWidth / 2), 
+        boardRect.top + (7 * cellHeight) + (cellHeight / 2),
+        2,
+        10); // BL.
+
+    double tempMin = std::min(refTL, refBL);
+	double tempMax = std::max(refTL, refBL);
+    double refBlack = tempMin;
+    double refWhite = tempMax;
+
+    std::cout << "[DEBUG] Black Brightness: " << refBlack << std::endl;
+    std::cout << "[DEBUG] White Brightness: " << refWhite << std::endl;
+
+    if (refTL > refBL) {
+        std::cout << "[INFO] White pieces are at the top." << std::endl;
+    }
+    else {
+        std::cout << "[INFO] Black pieces are at the top." << std::endl;
+    }
 
     // Creating temporary directory for piece images.
     LPCWSTR tempDir = L"temp"; // Pointer.
@@ -190,8 +252,8 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
     CreateDirectory(tempDir, NULL);
 
     for (int i = 0; i < 5; ++i) {
-        int x = bestRect.left + i * cellWidth;
-        int y = bestRect.top;
+        int x = boardRect.left + i * cellWidth;
+        int y = boardRect.top;
 
 		std::cout << "[DEBUG] Capturing piece at (" << x << ", " << y << " with width " << cellWidth << " and height " << cellHeight << ")\n";
         cv::Mat piece = CropHWND2MAT(hwndDesktop, x, y, cellWidth, cellHeight);
@@ -204,8 +266,8 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
 
         if (i == 4) {
             // First cell of second row.
-            int x = bestRect.left;
-            int y = bestRect.top + cellHeight;
+            int x = boardRect.left;
+            int y = boardRect.top + cellHeight;
             cv::Mat piece = CropHWND2MAT(hwndDesktop, x, y, cellWidth, cellHeight);
 
             cv::Mat edges;
@@ -215,6 +277,94 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
             cv::imwrite(filename, edges);
         }
     }
+
+	// Analysing the board continuously.
+    int cellCount = 8 * 8;
+
+    // While true:
+    //  Take a print of the screen.
+	//  For each cell, check if it is occupied like this: if the center is black or white, it is occupied.
+	//  If occupied, save the COLOR of the piece and the position.
+	//  For each occupied cell, crop the occupied cell and compare it to the pieces in the temp folder.
+    //  According to the best match, assign a piece type, and draw text with the piece type according to FEN notation.
+	//  While keeping track of the pieces, also turn the board into FEN notation so that we can later feed it into stockfish.
+
+    auto refPieces = LoadReferencePieces(tempDir);
+
+	int tolerance = 15;
+    int globalEmptyCount = 0;
+	int globalBlackCount = 0;
+	int globalWhiteCount = 0;
+
+    while (true) {
+        cv::Mat frame = HWND2MAT(hwndDesktop);
+        std::string fen;
+        for (int row = 0; row < 8; ++row) {
+            int emptyCount = 0;
+            for (int col = 0; col < 8; ++col) {
+                int cx = boardRect.left + (col * cellWidth) + (cellWidth / 2);
+                int cy = boardRect.top + (row * cellHeight) + (cellHeight / 2);
+
+                double val = SampleCellCenter(frame, cx, cy, 2, 10);
+
+                // Piece color detection.
+                bool isBlack = std::abs(val - refBlack) < tolerance;
+                bool isWhite = std::abs(val - refWhite) < tolerance;
+
+                std::cout << "[DEBUG] Cell (" << row << ", " << col << ") brightness: " << val 
+					<< (isBlack ? " [Black]" : isWhite ? " [White]" : " [Empty]") << std::endl;
+
+                if (isBlack) globalBlackCount++;
+                if (isWhite) globalWhiteCount++;
+
+                if (!isBlack && !isWhite) {
+                    ++emptyCount;
+                    globalEmptyCount++;
+                }
+                else {
+                    if (emptyCount > 0) {
+                        fen += std::to_string(emptyCount);
+                        emptyCount = 0;
+                    }
+
+                    // Crop, edge, and match.
+                    cv::Mat crop = CropHWND2MAT(hwndDesktop, 
+                        boardRect.left + col * cellWidth, 
+                        boardRect.top + row * cellHeight, 
+                        cellWidth, 
+                        cellHeight);
+                    cv::Mat edges;
+                    cv::Canny(crop, edges, 50, 150);
+
+                    // Find best match.
+                    std::string bestName;
+                    double bestScore = 1e9;
+                    for (const auto& [name, ref] : refPieces) {
+                        double score = CompareEdges(edges, ref);
+                        if (score < bestScore) {
+                            bestScore = score;
+                            bestName = name;
+                        }
+                    }
+
+                    // TODO, assign FEN name of the piece.
+                }
+            }
+
+            if (emptyCount > 0) fen += std::to_string(emptyCount);
+            if (row < 7) fen += '/';
+        }
+
+        std::cout << "[FEN] " << fen << std::endl;
+
+        // TODO: Draw FEN or piece type on overlay if needed.
+
+        break;
+    }
+
+    PostMessage(hwndOverlay, WM_CHESSBOARD_DETECTED, NULL, NULL);
+
+	std::cout << "Pieces detected: Black = " << globalBlackCount << ", White = " << globalWhiteCount << ", Empty = " << globalEmptyCount << std::endl;
 
     Sleep(500000000);
 
