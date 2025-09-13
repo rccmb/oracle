@@ -1,8 +1,6 @@
 #include "Overlay.h"
 
-// ImGui parameters for debugging ROI selection.
-int g_debugROI_x = 0;
-int g_debugROI_y = 0;
+// ImGui parameters for debugging.
 int g_debugPatchSize = 6;
 int g_debugOffset = 0;
 

@@ -8,8 +8,7 @@
 
 #define WM_CHESSBOARD_DETECTED (WM_USER + 1)
 
-extern int g_debugROI_x;
-extern int g_debugROI_y;
+// ImGui parameters for debugging.
 extern int g_debugPatchSize;
 extern int g_debugOffset;
 

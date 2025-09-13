@@ -19,7 +19,7 @@ void RenderFrame() {
     ImGui::NewFrame();
 
     // Drawing the board rectangle.
-    if ((g_boardRect.right - g_boardRect.left) > 0 && (g_boardRect.bottom - g_boardRect.top) > 0) {
+    if (!g_isRescanning && (g_boardRect.right - g_boardRect.left) > 0 && (g_boardRect.bottom - g_boardRect.top) > 0) {
         ImDrawList* draw_list = ImGui::GetBackgroundDrawList();
         draw_list->AddRect(
             ImVec2((float)g_boardRect.left, (float)g_boardRect.top),
@@ -31,22 +31,51 @@ void RenderFrame() {
         );
     }
 
+    // Drawing the sampling points.
     ImDrawList* draw_list = ImGui::GetBackgroundDrawList();
-    for (const SAMPLE& s : g_debugSamples) {
-        draw_list->AddRectFilled(
-            ImVec2((float)s.x, (float)s.y),
-            ImVec2((float)(s.x + s.width), (float)(s.y + s.height)),
-            IM_COL32(255, 0, 0, 128) // Semi-transparent red
-        );
-        // Optionally, add a border:
-        draw_list->AddRect(
-            ImVec2((float)s.x, (float)s.y),
-            ImVec2((float)(s.x + s.width), (float)(s.y + s.height)),
-            IM_COL32(255, 0, 0, 255), // Opaque red border
-            0.0f, 0, 1.0f
-        );
+    
+    // Only draw sample points during configuration mode (not during analysis) and not during rescan
+    if (!g_isRescanning && g_isConfiguringSamplePoints && !g_userSamplePoints.empty() && 
+        (g_boardRect.right - g_boardRect.left) > 0 && (g_boardRect.bottom - g_boardRect.top) > 0) {
+        int cellWidth = (g_boardRect.right - g_boardRect.left) / 8;
+        int cellHeight = (g_boardRect.bottom - g_boardRect.top) / 8;
+        
+        for (int row = 0; row < 8; row++) {
+            for (int col = 0; col < 8; col++) {
+                // Calculate cell center
+                int cellCenterX = g_boardRect.left + (col * cellWidth) + (cellWidth / 2);
+                int cellCenterY = g_boardRect.top + (row * cellHeight) + (cellHeight / 2);
+                
+                // Apply slider values
+                int patchSize = g_debugPatchSize;
+                int offset = g_debugOffset;
+                int half = patchSize / 2;
+                
+                int sampleX = cellCenterX - half;
+                int sampleY = cellCenterY - half + offset;
+                
+                // Draw the sample point
+                draw_list->AddRectFilled(
+                    ImVec2((float)sampleX, (float)sampleY),
+                    ImVec2((float)(sampleX + patchSize), (float)(sampleY + patchSize)),
+                    IM_COL32(0, 255, 255, 128) // Semi-transparent cyan
+                );
+            }
+        }
+    }
+    
+    // Draw debug samples only during configuration mode (exact ROI preview) and not during rescan
+    if (!g_isRescanning && g_isConfiguringSamplePoints) {
+        for (const SAMPLE& s : g_debugSamples) {
+            draw_list->AddRectFilled(
+                ImVec2((float)s.x, (float)s.y),
+                ImVec2((float)(s.x + s.width), (float)(s.y + s.height)),
+                IM_COL32(255, 0, 0, 128) // Semi-transparent red for debug samples
+            );
+        }
     }
 
+	// Showing the ImGui menu.
     if (show_imgui_menu) {
         ShowMenu(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
     }
@@ -65,6 +94,7 @@ int main() {
     HINSTANCE hInstance = GetModuleHandle(NULL);
     const LPCWSTR className = L"Oracle Overlay";
     HWND hwndOverlay = CreateOverlayWindow(hInstance, className);
+    HWND hwndDesktop = GetDesktopWindow();
 
 	// Creating the Direct3D device.
     if (!CreateDeviceD3D(hwndOverlay)) {
@@ -78,10 +108,12 @@ int main() {
     // Initializing ImGui.
     InitializeImGui(hwndOverlay, g_pd3dDevice, g_pd3dDeviceContext);
 
-	// Get chessboard color coding.
-    HWND hwndDesktop = GetDesktopWindow();
-	std::pair<CLICK, CLICK> clicks = GetChessboardColorCoding(hwndDesktop);
+    // CONFIGURATION - Board Detection Only.
+    std::pair<CLICK, CLICK> clicks = DetectChessboardColorCoding(hwndDesktop);
     SetChessboardClicks(clicks);
+
+    cv::Mat screenshot = HWND2MAT(hwndDesktop);
+    DetectBoardDimensions(screenshot);
 
     // Create ChessboardDetectionThread.
     CreateThread(NULL, 0, ChessboardDetectionThread, hwndOverlay, 0, NULL);
@@ -89,8 +121,8 @@ int main() {
     MSG msg = {};
     while (true) {
 		// Toggle ImGui menu. LCONTROL + F1 to enable/disable.
-        if ((GetAsyncKeyState(VK_LCONTROL) & 0x8000) && 
-            (GetAsyncKeyState(VK_F1) & 0x8000)) {
+        if ((GetAsyncKeyState(VK_ADD) & 0x8000) && 
+            (GetAsyncKeyState(VK_SUBTRACT) & 0x8000)) {
 
             show_imgui_menu = !show_imgui_menu;
 
@@ -114,7 +146,7 @@ int main() {
             if (msg.message == WM_QUIT)
                 return 0;
         }
-
+        
         // New frame.
         RenderFrame();
 
