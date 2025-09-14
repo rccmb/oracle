@@ -6,6 +6,10 @@
 #include <iostream>
 #include <string>
 
+#include "ChessboardDetection.h"
+#include "Utils.h"
+#include "Globals.h"
+#include "Structs.h"
 #include "Overlay.h"
 
 #include "imgui.h"

@@ -16,22 +16,9 @@
 
 #include "Utils.h"
 #include "Overlay.h"
-
-struct SAMPLE {
-    int x;
-    int y;
-    int width;
-    int height;
-};
-
-extern RECT g_boardRect;
-extern std::vector<SAMPLE> g_debugSamples;
-
-// Sample point configuration state
-extern bool g_isConfiguringSamplePoints;
-extern bool g_hasAnalysisStarted;
-extern bool g_isRescanning;
-extern std::vector<SAMPLE> g_userSamplePoints;
+#include "Structs.h"
+#include "Globals.h"
+#include "InitialConfiguration.h"
 
 /** 
  * @brief Thread function that continuously detects a chessboard on the desktop and sends its position/size to an overlay window.
@@ -42,23 +29,11 @@ extern std::vector<SAMPLE> g_userSamplePoints;
  */
 DWORD WINAPI ChessboardDetectionThread(LPVOID param);
 
-/**
- * @brief Captures two mouse clicks to determine chessboard cell coordinates and grayscale values.
- * 
- * @param hwnd Handle to the window for screenshot capture and coordinate conversion.
- * 
- * @return std::pair<CLICK, CLICK> A pair of CLICK structs, each containing x, y coordinates and the grayscale value of the pixel at the click location.
- */
-void SetChessboardClicks(std::pair<CLICK, CLICK> clicks);
-
 // TODO: Documentation.
 int DetectBoardDimensions(cv::Mat screenshot);
 
 // TODO: Documentation.
 int DetectPieceColorCoding(cv::Mat screenshot, int cellWidth, int cellHeight);
-
-// TODO: Documentation.
-std::pair<CLICK, CLICK> DetectChessboardColorCoding(HWND hwndDesktop);
 
 // TODO: Documentation.
 void UpdateDebugSamples();

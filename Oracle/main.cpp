@@ -6,12 +6,43 @@
 #include <string>
 
 #include "Utils.h"
+#include "Globals.h"
+#include "Structs.h"
 #include "Overlay.h"
 #include "ChessboardDetection.h"
 #include "Direct3D.h"
 #include "Menu.h"
+#include "imgui.h"
 
-static bool show_imgui_menu = false;
+static bool IMGUI_MENU_VISIBLE = false;
+
+// Helper: Capture board clicks. 
+void CaptureBoardClicks(HWND hwndDesktop) {
+    ImGuiIO& io = ImGui::GetIO();
+    if (!g_boardClicksReady && IMGUI_MENU_VISIBLE) {
+        if ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) && (GetAsyncKeyState(VK_CONTROL) & 0x8000) && !io.WantCaptureMouse) {
+            cv::Mat screenshot = HWND2MAT(hwndDesktop);
+
+            POINT p;
+            GetCursorPos(&p);
+
+            if (g_clickStage == 0) {
+                g_firstClick.x = p.x;
+                g_firstClick.y = p.y;
+                if (g_firstClick.y >= 0 && g_firstClick.y < screenshot.rows && g_firstClick.x >= 0 && g_firstClick.x < screenshot.cols)
+                    g_firstClick.grayscaleValue = screenshot.at<uchar>(g_firstClick.y, g_firstClick.x);
+                g_clickStage = 1;
+            } else if (g_clickStage == 1) {
+                g_secondClick.x = p.x;
+                g_secondClick.y = p.y;
+                if (g_secondClick.y >= 0 && g_secondClick.y < screenshot.rows && g_secondClick.x >= 0 && g_secondClick.x < screenshot.cols)
+                    g_secondClick.grayscaleValue = screenshot.at<uchar>(g_secondClick.y, g_secondClick.x);
+                g_clickStage = 2;
+            }
+            Sleep(200); 
+        }
+    }
+}
 
 void RenderFrame() {
     ImGui_ImplDX11_NewFrame();
@@ -34,7 +65,7 @@ void RenderFrame() {
     // Drawing the sampling points.
     ImDrawList* draw_list = ImGui::GetBackgroundDrawList();
     
-    // Only draw sample points during configuration mode (not during analysis) and not during rescan
+    // Only draw sample points during configuration mode.
     if (!g_isRescanning && g_isConfiguringSamplePoints && !g_userSamplePoints.empty() && 
         (g_boardRect.right - g_boardRect.left) > 0 && (g_boardRect.bottom - g_boardRect.top) > 0) {
         int cellWidth = (g_boardRect.right - g_boardRect.left) / 8;
@@ -42,11 +73,11 @@ void RenderFrame() {
         
         for (int row = 0; row < 8; row++) {
             for (int col = 0; col < 8; col++) {
-                // Calculate cell center
+                // Calculate cell center.
                 int cellCenterX = g_boardRect.left + (col * cellWidth) + (cellWidth / 2);
                 int cellCenterY = g_boardRect.top + (row * cellHeight) + (cellHeight / 2);
                 
-                // Apply slider values
+                // Apply slider values.
                 int patchSize = g_debugPatchSize;
                 int offset = g_debugOffset;
                 int half = patchSize / 2;
@@ -54,29 +85,28 @@ void RenderFrame() {
                 int sampleX = cellCenterX - half;
                 int sampleY = cellCenterY - half + offset;
                 
-                // Draw the sample point
                 draw_list->AddRectFilled(
                     ImVec2((float)sampleX, (float)sampleY),
                     ImVec2((float)(sampleX + patchSize), (float)(sampleY + patchSize)),
-                    IM_COL32(0, 255, 255, 128) // Semi-transparent cyan
+                    IM_COL32(0, 255, 255, 128) 
                 );
             }
         }
     }
     
-    // Draw debug samples only during configuration mode (exact ROI preview) and not during rescan
+    // Draw debug samples only during configuration mode.
     if (!g_isRescanning && g_isConfiguringSamplePoints) {
         for (const SAMPLE& s : g_debugSamples) {
             draw_list->AddRectFilled(
                 ImVec2((float)s.x, (float)s.y),
                 ImVec2((float)(s.x + s.width), (float)(s.y + s.height)),
-                IM_COL32(255, 0, 0, 128) // Semi-transparent red for debug samples
+                IM_COL32(255, 0, 0, 128)
             );
         }
     }
 
 	// Showing the ImGui menu.
-    if (show_imgui_menu) {
+    if (IMGUI_MENU_VISIBLE) {
         ShowMenu(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
     }
 
@@ -108,27 +138,20 @@ int main() {
     // Initializing ImGui.
     InitializeImGui(hwndOverlay, g_pd3dDevice, g_pd3dDeviceContext);
 
-    // CONFIGURATION - Board Detection Only.
-    std::pair<CLICK, CLICK> clicks = DetectChessboardColorCoding(hwndDesktop);
-    SetChessboardClicks(clicks);
-
-    cv::Mat screenshot = HWND2MAT(hwndDesktop);
-    DetectBoardDimensions(screenshot);
-
     // Create ChessboardDetectionThread.
     CreateThread(NULL, 0, ChessboardDetectionThread, hwndOverlay, 0, NULL);
 
     MSG msg = {};
     while (true) {
 		// Toggle ImGui menu. LCONTROL + F1 to enable/disable.
-        if ((GetAsyncKeyState(VK_ADD) & 0x8000) && 
-            (GetAsyncKeyState(VK_SUBTRACT) & 0x8000)) {
+        if ((GetAsyncKeyState(VK_LCONTROL) & 0x8000) && 
+            (GetAsyncKeyState(VK_F1) & 0x8000)) {
 
-            show_imgui_menu = !show_imgui_menu;
+            IMGUI_MENU_VISIBLE = !IMGUI_MENU_VISIBLE;
 
 			// Enable/disable click-through.
             LONG_PTR exStyle = GetWindowLongPtr(hwndOverlay, GWL_EXSTYLE);
-            if (show_imgui_menu) {
+            if (IMGUI_MENU_VISIBLE) {
                 SetWindowLongPtr(hwndOverlay, GWL_EXSTYLE, exStyle & ~(WS_EX_TRANSPARENT | WS_EX_NOACTIVATE));
                 SetForegroundWindow(hwndOverlay);
             }
@@ -138,6 +161,9 @@ int main() {
 
             Sleep(100);
         }
+
+        // Capture board clicks using hotkey
+        CaptureBoardClicks(hwndDesktop);
 
 		// Handle Windows messages.
         while (PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE)) {

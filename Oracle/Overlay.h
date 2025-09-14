@@ -6,11 +6,11 @@
 #include <iostream>
 #include <string>
 
-#define WM_CHESSBOARD_DETECTED (WM_USER + 1)
+#include "Utils.h"
+#include "Globals.h"
+#include "Structs.h"
 
-// ImGui parameters for debugging.
-extern int g_debugPatchSize;
-extern int g_debugOffset;
+#define WM_CHESSBOARD_DETECTED (WM_USER + 1)
 
 /**
  * @brief Window procedure to handle messages for the overlay window.

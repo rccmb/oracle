@@ -1,6 +1,4 @@
 #include "Menu.h"
-#include "ChessboardDetection.h"
-#include "Utils.h"
 
 void ShowMenu(int imageWidth, int imageHeight) {
     static bool show_window = true;
@@ -8,7 +6,6 @@ void ShowMenu(int imageWidth, int imageHeight) {
     ImGui::SetNextWindowPos(ImVec2(100, 100), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(400, 0), ImGuiCond_FirstUseEver);
 
-    // Main window.
     if (!ImGui::Begin("Chess Analysis Controls", &show_window, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize)) {
         ImGui::End();
         return;
@@ -17,31 +14,44 @@ void ShowMenu(int imageWidth, int imageHeight) {
     // Board Detection Section
     ImGui::Text("Board Detection");
     ImGui::Separator();
+
+    if (!g_boardClicksReady) {
+        ImGui::Text("Click on the board using Ctrl+LMB to set corners:");
+        if (g_clickStage == 0) {
+            ImGui::TextColored(ImVec4(1, 1, 0, 1), "Waiting for FIRST click...");
+        }
+        else if (g_clickStage == 1) {
+            ImGui::TextColored(ImVec4(1, 1, 0, 1), "Waiting for SECOND click...");
+            ImGui::Text("First: (%d, %d)", g_firstClick.x, g_firstClick.y);
+        }
+        if (ImGui::Button("Reset Board Clicks")) {
+            g_clickStage = 0;
+            g_firstClick = { -1, -1, 0 };
+            g_secondClick = { -1, -1, 0 };
+        }
+        if (g_clickStage == 2) {
+            if (ImGui::Button("Detect Board")) {
+                g_boardClicksReady = true;
+                cv::Mat screenshot = HWND2MAT(GetDesktopWindow());
+                DetectBoardDimensions(screenshot);
+            }
+            ImGui::Text("First: (%d, %d)  Second: (%d, %d)", g_firstClick.x, g_firstClick.y, g_secondClick.x, g_secondClick.y);
+        }
+        ImGui::Separator();
+    }
     
     if (ImGui::Button("Rescan Board")) {
-        // Stop any ongoing analysis
         g_hasAnalysisStarted = false;
         g_isConfiguringSamplePoints = true;
-        g_isRescanning = true; // Set rescan flag to clear visuals
-        
-        // Clear existing data
+        g_isRescanning = true;
+        g_boardClicksReady = false;
+        g_clickStage = 0;
+        g_firstClick = { -1, -1, 0 };
+        g_secondClick = { -1, -1, 0 };
         g_debugSamples.clear();
         g_userSamplePoints.clear();
-        g_boardRect = { 0, 0, 0, 0 }; // This will hide the board rectangle
-        
-        std::cout << "[INFO] Starting complete board rescan - please click two points to define the chessboard" << std::endl;
-        
-        // Restart the entire process - get new clicks and detect board
-        std::pair<CLICK, CLICK> clicks = DetectChessboardColorCoding(GetDesktopWindow());
-        SetChessboardClicks(clicks);
-        
-        cv::Mat screenshot = HWND2MAT(GetDesktopWindow());
-        DetectBoardDimensions(screenshot);
-        
-        // Clear rescan flag after detection is complete
-        g_isRescanning = false;
-        
-        std::cout << "[INFO] Board rescanned - please reconfigure sample points" << std::endl;
+        g_boardRect = { 0, 0, 0, 0 };
+        std::cout << "[INFO] Board rescan requested - please click two points to define the chessboard" << std::endl;
     }
     
     ImGui::Separator();
@@ -95,7 +105,6 @@ void ShowMenu(int imageWidth, int imageHeight) {
         prevPatchSize = g_debugPatchSize;
         prevOffset = g_debugOffset;
     }
-    
 
     ImGui::End();
 }

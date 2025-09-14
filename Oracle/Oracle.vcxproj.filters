@@ -69,6 +69,12 @@
     <ClCompile Include="Direct3D.cpp">
       <Filter>Source Files\D3D</Filter>
     </ClCompile>
+    <ClCompile Include="InitialConfiguration.cpp">
+      <Filter>Source Files\Logic</Filter>
+    </ClCompile>
+    <ClCompile Include="Globals.cpp">
+      <Filter>Source Files\Helpers</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Overlay.h">
@@ -109,6 +115,15 @@
     </ClInclude>
     <ClInclude Include="Direct3D.h">
       <Filter>Source Files\D3D</Filter>
+    </ClInclude>
+    <ClInclude Include="InitialConfiguration.h">
+      <Filter>Source Files\Logic</Filter>
+    </ClInclude>
+    <ClInclude Include="Structs.h">
+      <Filter>Source Files\Helpers</Filter>
+    </ClInclude>
+    <ClInclude Include="Globals.h">
+      <Filter>Source Files\Helpers</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

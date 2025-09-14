@@ -131,6 +131,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Direct3D.cpp" />
+    <ClCompile Include="Globals.cpp" />
+    <ClCompile Include="InitialConfiguration.cpp" />
     <ClCompile Include="Menu.cpp" />
     <ClCompile Include="ImGui\imgui.cpp" />
     <ClCompile Include="ImGui\imgui_demo.cpp" />
@@ -146,6 +148,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Direct3D.h" />
+    <ClInclude Include="Globals.h" />
+    <ClInclude Include="InitialConfiguration.h" />
     <ClInclude Include="Menu.h" />
     <ClInclude Include="ImGui\imconfig.h" />
     <ClInclude Include="ImGui\imgui.h" />
@@ -156,6 +160,7 @@
     <ClInclude Include="ImGui\imstb_textedit.h" />
     <ClInclude Include="ImGui\imstb_truetype.h" />
     <ClInclude Include="Overlay.h" />
+    <ClInclude Include="Structs.h" />
     <ClInclude Include="Utils.h" />
     <ClInclude Include="ChessboardDetection.h" />
   </ItemGroup>
