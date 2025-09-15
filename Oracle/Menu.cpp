@@ -55,6 +55,8 @@ void ShowMenu(int imageWidth, int imageHeight) {
                 g_isRescanning = false;
                 g_isConfiguringSamplePoints = true;
                 g_samplePointsSet = false;
+                g_refBoardColor1 = (int)g_clicks.first.grayscaleValue;
+                g_refBoardColor2 = (int)g_clicks.second.grayscaleValue;
             }
             ImGui::Text("First: (%d, %d)  Second: (%d, %d)", g_viewFirstClick.x, g_viewFirstClick.y, g_viewSecondClick.x, g_viewSecondClick.y);
         }
@@ -78,6 +80,10 @@ void ShowMenu(int imageWidth, int imageHeight) {
         g_debugOffsetX = 0;
         g_debugOffsetY = 0;
         g_samplePointsSet = false;
+        g_refBlackPiece = -1;
+        g_refWhitePiece = -1;
+        g_refBoardColor1 = -1;
+        g_refBoardColor2 = -1;
         std::cout << "[INFO] Board rescan requested - please click two points to define the chessboard" << std::endl;
     }
     
@@ -89,30 +95,17 @@ void ShowMenu(int imageWidth, int imageHeight) {
     
     if (g_isConfiguringSamplePoints) {
         ImGui::TextColored(ImVec4(0, 1, 0, 1), "Configuration Mode: ACTIVE");
-        ImGui::Text("Adjust the sliders below to position sample points");
-        ImGui::Text("Sample points are automatically placed in each cell center");
-        ImGui::Text("Sample points are visible on screen for configuration");
-        
-        if (ImGui::Button("Set Sample Points")) {
-            UpdateDebugSamples();
-            g_samplePointsSet = true;
-        }
 
         ImGui::BeginDisabled(!(g_userScreenshotReady && g_boardClicksReady && g_samplePointsSet));
         if (ImGui::Button("Start Analysis")) {
             g_isConfiguringSamplePoints = false;
             g_hasAnalysisStarted = true;
-            // Start the piece color analysis here.
-            cv::Mat screenshot = g_userScreenshotReady && !g_userScreenshotGray.empty() ? g_userScreenshotGray : HWND2MAT(GetDesktopWindow());
-            DetectPieceColorCoding(screenshot, (g_boardRect.right - g_boardRect.left) / 8, (g_boardRect.bottom - g_boardRect.top) / 8);
         }
         ImGui::EndDisabled();
         
         ImGui::Text("Sample Points: %d", (int)g_debugSamples.size());
     } else {
         ImGui::TextColored(ImVec4(1, 1, 0, 1), "Analysis Mode: ACTIVE");
-        ImGui::Text("Sample points are hidden to avoid interference");
-        ImGui::Text("Analysis is using your configured sampling parameters");
         
         if (ImGui::Button("Reset Configuration")) {
             g_isConfiguringSamplePoints = true;
@@ -125,23 +118,40 @@ void ShowMenu(int imageWidth, int imageHeight) {
 
     ImGui::Separator();
     ImGui::Text("Sample Point Parameters");
+
+    ImGui::Text("Adjust the sliders below to position sample points.");
     
     // Track if sliders changed.
     static int prevPatchSize = g_debugPatchSize;
     static int prevOffsetX = g_debugOffsetX;
     static int prevOffsetY = g_debugOffsetY;
     
+    ImGui::BeginDisabled(g_samplePointsSet);
     ImGui::SliderInt("Patch Size", &g_debugPatchSize, 1, 64);
     ImGui::SliderInt("X Offset", &g_debugOffsetX, -32, 32);
     ImGui::SliderInt("Y Offset", &g_debugOffsetY, -32, 32);
-    
+    if (ImGui::Button("Set Sample Points")) {
+        UpdateDebugSamples();
+        DetectPieceColorCoding((g_boardRect.right - g_boardRect.left) / 8, (g_boardRect.bottom - g_boardRect.top) / 8);
+        g_samplePointsSet = true;
+    }
+    ImGui::EndDisabled();
+
     // Update debug samples if sliders changed.
-    if (prevPatchSize != g_debugPatchSize || prevOffsetX != g_debugOffsetX || prevOffsetY != g_debugOffsetY) {
+    if (!g_samplePointsSet && (prevPatchSize != g_debugPatchSize || prevOffsetX != g_debugOffsetX || prevOffsetY != g_debugOffsetY)) {
         UpdateDebugSamples();
         prevPatchSize = g_debugPatchSize;
         prevOffsetX = g_debugOffsetX;
         prevOffsetY = g_debugOffsetY;
     }
+
+    ImGui::Separator();
+    ImGui::Text("Reference Values");
+    ImGui::Text("Black Piece Intensity: %d", g_refBlackPiece);
+    ImGui::Text("White Piece Intensity: %d", g_refWhitePiece);
+    ImGui::Text("Board Color 1: %d", g_refBoardColor1);
+    ImGui::Text("Board Color 2: %d", g_refBoardColor2);
+
 
     ImGui::End();
 }

@@ -20,20 +20,14 @@
 #include "Globals.h"
 #include "InitialConfiguration.h"
 
-/** 
- * @brief Thread function that continuously detects a chessboard on the desktop and sends its position/size to an overlay window.
- * 
- * @param param Pointer to the handle of the overlay window (HWND) where detection results will be sent.
- * 
- * @return Always returns 0 as the thread exit code.
- */
+// TODO: Documentation.
+double SampleCellCenter(const cv::Mat& gray, int x, int y);
+
+// TODO: Documentation.
+double CompareEdges(const cv::Mat& a, const cv::Mat& b);
+
+// TODO: Documentation.
+std::map<std::string, cv::Mat> LoadReferencePieces(LPCWSTR tempDir);
+
+// TODO: Documentation.
 DWORD WINAPI ChessboardDetectionThread(LPVOID param);
-
-// TODO: Documentation.
-int DetectBoardDimensions(cv::Mat screenshot);
-
-// TODO: Documentation.
-int DetectPieceColorCoding(cv::Mat screenshot, int cellWidth, int cellHeight);
-
-// TODO: Documentation.
-void UpdateDebugSamples();

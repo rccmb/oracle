@@ -16,32 +16,10 @@
 
 static bool IMGUI_MENU_VISIBLE = false;
 
-// Helper: Capture board clicks. 
 void CaptureBoardClicks(HWND hwndDesktop) {
     ImGuiIO& io = ImGui::GetIO();
-    if (!g_boardClicksReady && IMGUI_MENU_VISIBLE && g_userScreenshotReady) {
-        if ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) && (GetAsyncKeyState(VK_CONTROL) & 0x8000) && !io.WantCaptureMouse) {
-            const cv::Mat& screenshot = g_userScreenshotGray;
-
-            POINT p;
-            GetCursorPos(&p);
-
-            if (g_clickStage == 0) {
-                g_viewFirstClick.x = p.x;
-                g_viewFirstClick.y = p.y;
-                if (g_viewFirstClick.y >= 0 && g_viewFirstClick.y < screenshot.rows && g_viewFirstClick.x >= 0 && g_viewFirstClick.x < screenshot.cols)
-                    g_viewFirstClick.grayscaleValue = screenshot.at<uchar>(g_viewFirstClick.y, g_viewFirstClick.x);
-                g_clickStage = 1;
-            } else if (g_clickStage == 1) {
-                g_viewSecondClick.x = p.x;
-                g_viewSecondClick.y = p.y;
-                if (g_viewSecondClick.y >= 0 && g_viewSecondClick.y < screenshot.rows && g_viewSecondClick.x >= 0 && g_viewSecondClick.x < screenshot.cols)
-                    g_viewSecondClick.grayscaleValue = screenshot.at<uchar>(g_viewSecondClick.y, g_viewSecondClick.x);
-                g_clickStage = 2;
-            } 
-
-            Sleep(200); 
-        }
+    if ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) && (GetAsyncKeyState(VK_CONTROL) & 0x8000) && !io.WantCaptureMouse) {
+        SetBoardClicks(hwndDesktop);
     }
 }
 
@@ -134,7 +112,9 @@ int main() {
         }
 
         // Capture board clicks using hotkey
-        CaptureBoardClicks(hwndDesktop);
+        if (!g_boardClicksReady && IMGUI_MENU_VISIBLE && g_userScreenshotReady) {
+            CaptureBoardClicks(hwndDesktop);
+        }
 
 		// Handle Windows messages.
         while (PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE)) {

@@ -37,3 +37,8 @@ extern CLICK g_viewSecondClick;
 extern cv::Mat g_userScreenshotGray;
 extern bool g_userScreenshotReady;
 extern bool g_samplePointsSet;
+
+extern int g_refBlackPiece;
+extern int g_refWhitePiece;
+extern int g_refBoardColor1;
+extern int g_refBoardColor2;

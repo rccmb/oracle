@@ -1,6 +1,29 @@
 #include "InitialConfiguration.h"
 
-// TODO: Document.
+void SetBoardClicks(HWND hwndDesktop) {
+    const cv::Mat& screenshot = g_userScreenshotGray;
+
+    POINT p;
+    GetCursorPos(&p);
+
+    if (g_clickStage == 0) {
+        g_viewFirstClick.x = p.x;
+        g_viewFirstClick.y = p.y;
+        if (g_viewFirstClick.y >= 0 && g_viewFirstClick.y < screenshot.rows && g_viewFirstClick.x >= 0 && g_viewFirstClick.x < screenshot.cols)
+            g_viewFirstClick.grayscaleValue = screenshot.at<uchar>(g_viewFirstClick.y, g_viewFirstClick.x);
+        g_clickStage = 1;
+    }
+    else if (g_clickStage == 1) {
+        g_viewSecondClick.x = p.x;
+        g_viewSecondClick.y = p.y;
+        if (g_viewSecondClick.y >= 0 && g_viewSecondClick.y < screenshot.rows && g_viewSecondClick.x >= 0 && g_viewSecondClick.x < screenshot.cols)
+            g_viewSecondClick.grayscaleValue = screenshot.at<uchar>(g_viewSecondClick.y, g_viewSecondClick.x);
+        g_clickStage = 2;
+    }
+
+    Sleep(200);
+}
+
 void UpdateDebugSamples() {
     g_debugSamples.clear();
 
@@ -24,6 +47,45 @@ void UpdateDebugSamples() {
             g_debugSamples.push_back(sample);
         }
     }
+}
+
+int DetectPieceColorCoding(int cellWidth, int cellHeight) {
+	// Hide debug samples during analysis so they don't interfere with detection visuals.
+	g_isConfiguringSamplePoints = false;
+
+	// Coordinates for the centers of top-left and bottom-left cells.
+	int topLeftCenterX = g_boardRect.left + (cellWidth / 2);
+	int topLeftCenterY = g_boardRect.top + (cellHeight / 2);
+	int bottomLeftCenterX = g_boardRect.left + (cellWidth / 2);
+	int bottomLeftCenterY = g_boardRect.top + (7 * cellHeight) + (cellHeight / 2);
+
+	int patch = g_debugPatchSize;
+	int offsetX = g_debugOffsetX;
+	int offsetY = g_debugOffsetY;
+
+	int tlX = topLeftCenterX - (patch / 2) + offsetX;
+	int tlY = topLeftCenterY - (patch / 2) + offsetY;
+	int blX = bottomLeftCenterX - (patch / 2) + offsetX;
+	int blY = bottomLeftCenterY - (patch / 2) + offsetY;
+
+	cv::Rect tlRoi(tlX, tlY, patch, patch);
+	cv::Rect blRoi(blX, blY, patch, patch);
+	tlRoi &= cv::Rect(0, 0, g_userScreenshotGray.cols, g_userScreenshotGray.rows);
+	blRoi &= cv::Rect(0, 0, g_userScreenshotGray.cols, g_userScreenshotGray.rows);
+
+	double tlVal = cv::mean(g_userScreenshotGray(tlRoi))[0];
+	double blVal = cv::mean(g_userScreenshotGray(blRoi))[0];
+
+	// Darker is the black pieces.
+	if (tlVal < blVal) {
+		g_refBlackPiece = (int)std::round(tlVal);
+		g_refWhitePiece = (int)std::round(blVal);
+	} else {
+		g_refBlackPiece = (int)std::round(blVal);
+		g_refWhitePiece = (int)std::round(tlVal);
+	}
+
+	return 1;
 }
 
 std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, const cv::Rect& roi, cv::Mat& debugImg) {
@@ -128,18 +190,6 @@ std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, const cv::Rect& 
     return g_boardRect;
 }
 
-// TODO: Document.
-cv::Rect GetBoardROI(const cv::Mat& img) {
-    int width = std::abs(g_clicks.second.x - g_clicks.first.x);
-    int height = width;
-
-    int roi_x = g_clicks.first.x;
-    int roi_y = g_clicks.first.y;
-
-    return cv::Rect(roi_x, roi_y, width, height);
-}
-
-// TODO: Document.
 int DetectBoardDimensions() {
 	cv::Mat screenshot;
 	if (g_userScreenshotReady && !g_userScreenshotGray.empty()) {
@@ -150,9 +200,14 @@ int DetectBoardDimensions() {
 
     if (screenshot.empty()) return 0;
 
-    // Validate the chessboard in the click-defined region.
-    cv::Rect boardROI = GetBoardROI(screenshot);
-    std::cout << "[DEBUG] Board ROI: (" << boardROI.x << ", " << boardROI.y << ", " << boardROI.width << ", " << boardROI.height << ")" << std::endl;
+    // Calculate the board ROI.
+    int width = std::abs(g_clicks.second.x - g_clicks.first.x);
+    int height = width;
+
+    int roi_x = g_clicks.first.x;
+    int roi_y = g_clicks.first.y;
+
+    cv::Rect boardROI = cv::Rect(roi_x, roi_y, width, height);
 
     auto result = ValidateChessboard(screenshot, boardROI, screenshot);
     if (result) {
@@ -162,11 +217,6 @@ int DetectBoardDimensions() {
 
         // Generate debug samples now that board is known.
         UpdateDebugSamples();
-    }
-    else {
-        std::cout << "[ERROR] Failed to detect chessboard pattern in the specified region" << std::endl;
-        std::cout << "[ERROR] Please try clicking on different corners of the chessboard" << std::endl;
-        return 0;
     }
 
     return 1;
