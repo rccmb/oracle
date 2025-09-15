@@ -15,27 +15,48 @@ void ShowMenu(int imageWidth, int imageHeight) {
     ImGui::Text("Board Detection");
     ImGui::Separator();
 
-    if (!g_boardClicksReady) {
+    if (!g_userScreenshotReady) {
+        ImGui::TextColored(ImVec4(1, 0.5f, 0, 1), "You must take a screenshot before setting clicks.");
+        if (ImGui::Button("Take Screenshot")) {
+            g_userScreenshotGray = HWND2MAT(GetDesktopWindow());
+            if (!g_userScreenshotGray.empty()) {
+                g_userScreenshotReady = true;
+                g_clickStage = 0;
+                g_viewFirstClick = { -1, -1, 0 };
+                g_viewSecondClick = { -1, -1, 0 };
+                std::cout << "[INFO] Screenshot captured for click sampling (" << g_userScreenshotGray.cols << "x" << g_userScreenshotGray.rows << ")" << std::endl;
+            } else {
+                std::cout << "[ERROR] Failed to capture screenshot." << std::endl;
+            }
+        }
+        ImGui::Separator();
+    }
+
+    if (!g_boardClicksReady && g_userScreenshotReady) {
         ImGui::Text("Click on the board using Ctrl+LMB to set corners:");
         if (g_clickStage == 0) {
             ImGui::TextColored(ImVec4(1, 1, 0, 1), "Waiting for FIRST click...");
         }
         else if (g_clickStage == 1) {
             ImGui::TextColored(ImVec4(1, 1, 0, 1), "Waiting for SECOND click...");
-            ImGui::Text("First: (%d, %d)", g_firstClick.x, g_firstClick.y);
+            ImGui::Text("First: (%d, %d)", g_viewFirstClick.x, g_viewFirstClick.y);
         }
         if (ImGui::Button("Reset Board Clicks")) {
             g_clickStage = 0;
-            g_firstClick = { -1, -1, 0 };
-            g_secondClick = { -1, -1, 0 };
+            g_viewFirstClick = { -1, -1, 0 };
+            g_viewSecondClick = { -1, -1, 0 };
+			g_clicks = { g_viewFirstClick, g_viewSecondClick };
         }
         if (g_clickStage == 2) {
             if (ImGui::Button("Detect Board")) {
                 g_boardClicksReady = true;
-                cv::Mat screenshot = HWND2MAT(GetDesktopWindow());
-                DetectBoardDimensions(screenshot);
+				g_clicks = { g_viewFirstClick, g_viewSecondClick };
+                DetectBoardDimensions();
+                g_isRescanning = false;
+                g_isConfiguringSamplePoints = true;
+                g_samplePointsSet = false;
             }
-            ImGui::Text("First: (%d, %d)  Second: (%d, %d)", g_firstClick.x, g_firstClick.y, g_secondClick.x, g_secondClick.y);
+            ImGui::Text("First: (%d, %d)  Second: (%d, %d)", g_viewFirstClick.x, g_viewFirstClick.y, g_viewSecondClick.x, g_viewSecondClick.y);
         }
         ImGui::Separator();
     }
@@ -45,12 +66,18 @@ void ShowMenu(int imageWidth, int imageHeight) {
         g_isConfiguringSamplePoints = true;
         g_isRescanning = true;
         g_boardClicksReady = false;
+        g_userScreenshotReady = false;
+        g_userScreenshotGray.release();
         g_clickStage = 0;
-        g_firstClick = { -1, -1, 0 };
-        g_secondClick = { -1, -1, 0 };
+        g_viewFirstClick = { -1, -1, 0 };
+        g_viewSecondClick = { -1, -1, 0 };
         g_debugSamples.clear();
-        g_userSamplePoints.clear();
         g_boardRect = { 0, 0, 0, 0 };
+        g_clicks = { g_viewFirstClick, g_viewSecondClick };
+        g_debugPatchSize = 5;
+        g_debugOffsetX = 0;
+        g_debugOffsetY = 0;
+        g_samplePointsSet = false;
         std::cout << "[INFO] Board rescan requested - please click two points to define the chessboard" << std::endl;
     }
     
@@ -66,15 +93,22 @@ void ShowMenu(int imageWidth, int imageHeight) {
         ImGui::Text("Sample points are automatically placed in each cell center");
         ImGui::Text("Sample points are visible on screen for configuration");
         
+        if (ImGui::Button("Set Sample Points")) {
+            UpdateDebugSamples();
+            g_samplePointsSet = true;
+        }
+
+        ImGui::BeginDisabled(!(g_userScreenshotReady && g_boardClicksReady && g_samplePointsSet));
         if (ImGui::Button("Start Analysis")) {
             g_isConfiguringSamplePoints = false;
             g_hasAnalysisStarted = true;
-            // Start the piece color analysis here
-            cv::Mat screenshot = HWND2MAT(GetDesktopWindow());
+            // Start the piece color analysis here.
+            cv::Mat screenshot = g_userScreenshotReady && !g_userScreenshotGray.empty() ? g_userScreenshotGray : HWND2MAT(GetDesktopWindow());
             DetectPieceColorCoding(screenshot, (g_boardRect.right - g_boardRect.left) / 8, (g_boardRect.bottom - g_boardRect.top) / 8);
         }
+        ImGui::EndDisabled();
         
-        ImGui::Text("Sample Points: %d", (int)g_userSamplePoints.size());
+        ImGui::Text("Sample Points: %d", (int)g_debugSamples.size());
     } else {
         ImGui::TextColored(ImVec4(1, 1, 0, 1), "Analysis Mode: ACTIVE");
         ImGui::Text("Sample points are hidden to avoid interference");
@@ -84,7 +118,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
             g_isConfiguringSamplePoints = true;
             g_hasAnalysisStarted = false;
             g_debugSamples.clear();
-            // Update debug samples with current configuration
+            // Update debug samples with current configuration. 
             UpdateDebugSamples();
         }
     }
@@ -92,18 +126,21 @@ void ShowMenu(int imageWidth, int imageHeight) {
     ImGui::Separator();
     ImGui::Text("Sample Point Parameters");
     
-    // Track if sliders changed
+    // Track if sliders changed.
     static int prevPatchSize = g_debugPatchSize;
-    static int prevOffset = g_debugOffset;
+    static int prevOffsetX = g_debugOffsetX;
+    static int prevOffsetY = g_debugOffsetY;
     
     ImGui::SliderInt("Patch Size", &g_debugPatchSize, 1, 64);
-    ImGui::SliderInt("Offset", &g_debugOffset, -32, 32);
+    ImGui::SliderInt("X Offset", &g_debugOffsetX, -32, 32);
+    ImGui::SliderInt("Y Offset", &g_debugOffsetY, -32, 32);
     
-    // Update debug samples if sliders changed
-    if (prevPatchSize != g_debugPatchSize || prevOffset != g_debugOffset) {
+    // Update debug samples if sliders changed.
+    if (prevPatchSize != g_debugPatchSize || prevOffsetX != g_debugOffsetX || prevOffsetY != g_debugOffsetY) {
         UpdateDebugSamples();
         prevPatchSize = g_debugPatchSize;
-        prevOffset = g_debugOffset;
+        prevOffsetX = g_debugOffsetX;
+        prevOffsetY = g_debugOffsetY;
     }
 
     ImGui::End();

@@ -11,6 +11,7 @@
 #include "Globals.h"
 #include "Structs.h"
 #include "Overlay.h"
+#include "InitialConfiguration.h"
 
 #include "imgui.h"
 #include "imgui_impl_win32.h"

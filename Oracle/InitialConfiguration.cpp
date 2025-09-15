@@ -1,8 +1,37 @@
 #include "InitialConfiguration.h"
 
+// TODO: Document.
+void UpdateDebugSamples() {
+    g_debugSamples.clear();
+
+    if (g_boardRect.right - g_boardRect.left <= 0 || g_boardRect.bottom - g_boardRect.top <= 0) {
+        return;
+    }
+
+    int cellWidth = (g_boardRect.right - g_boardRect.left) / 8;
+    int cellHeight = (g_boardRect.bottom - g_boardRect.top) / 8;
+
+    // Generate debug samples for all cells using current configuration.
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+            SAMPLE sample;
+            int cellCenterX = g_boardRect.left + (col * cellWidth) + (cellWidth / 2);
+            int cellCenterY = g_boardRect.top + (row * cellHeight) + (cellHeight / 2);
+            sample.x = cellCenterX - (g_debugPatchSize / 2) + g_debugOffsetX;
+            sample.y = cellCenterY - (g_debugPatchSize / 2) + g_debugOffsetY;
+            sample.width = g_debugPatchSize;
+            sample.height = g_debugPatchSize;
+            g_debugSamples.push_back(sample);
+        }
+    }
+}
+
 std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, const cv::Rect& roi, cv::Mat& debugImg) {
     const int patchSize = 1;
     const int stride = 2;
+
+    std::cout << "Clicks are at (" << g_clicks.first.x << ", " << g_clicks.first.y << ") and ("
+		<< g_clicks.second.x << ", " << g_clicks.second.y << ") with grayscaleValue " << (int)g_clicks.first.grayscaleValue << " and " << (int)g_clicks.second.grayscaleValue << std::endl;
 
     uchar colorA = g_clicks.first.grayscaleValue;
     uchar colorB = g_clicks.second.grayscaleValue;
@@ -62,7 +91,7 @@ std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, const cv::Rect& 
         }
     }
 
-    // Check if we found enough junctions to form a chessboard
+    // Check if we found enough junctions to form a chessboard.
     if (junctions.size() < 4) {
         std::cout << "[ERROR] Not enough chessboard junctions found (" << junctions.size() << " found, need at least 4)" << std::endl;
         return std::nullopt;
@@ -98,3 +127,48 @@ std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, const cv::Rect& 
     std::cout << "[INFO] Detected board at (" << g_boardRect.x << ", " << g_boardRect.y << ") size (" << g_boardRect.width << "x" << g_boardRect.height << ")\n";
     return g_boardRect;
 }
+
+// TODO: Document.
+cv::Rect GetBoardROI(const cv::Mat& img) {
+    int width = std::abs(g_clicks.second.x - g_clicks.first.x);
+    int height = width;
+
+    int roi_x = g_clicks.first.x;
+    int roi_y = g_clicks.first.y;
+
+    return cv::Rect(roi_x, roi_y, width, height);
+}
+
+// TODO: Document.
+int DetectBoardDimensions() {
+	cv::Mat screenshot;
+	if (g_userScreenshotReady && !g_userScreenshotGray.empty()) {
+		screenshot = g_userScreenshotGray;
+	} else {
+		screenshot = HWND2MAT(GetDesktopWindow());
+	}
+
+    if (screenshot.empty()) return 0;
+
+    // Validate the chessboard in the click-defined region.
+    cv::Rect boardROI = GetBoardROI(screenshot);
+    std::cout << "[DEBUG] Board ROI: (" << boardROI.x << ", " << boardROI.y << ", " << boardROI.width << ", " << boardROI.height << ")" << std::endl;
+
+    auto result = ValidateChessboard(screenshot, boardROI, screenshot);
+    if (result) {
+        // Drawing the board on the overlay.
+        const cv::Rect& fixedRect = *result;
+        g_boardRect = { fixedRect.x, fixedRect.y, fixedRect.x + fixedRect.width, fixedRect.y + fixedRect.height };
+
+        // Generate debug samples now that board is known.
+        UpdateDebugSamples();
+    }
+    else {
+        std::cout << "[ERROR] Failed to detect chessboard pattern in the specified region" << std::endl;
+        std::cout << "[ERROR] Please try clicking on different corners of the chessboard" << std::endl;
+        return 0;
+    }
+
+    return 1;
+}
+

@@ -28,6 +28,9 @@
     <Filter Include="Source Files\D3D">
       <UniqueIdentifier>{469b4adb-ac96-486a-a88f-24c2ec984051}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Models">
+      <UniqueIdentifier>{43cf1c60-2542-4851-9caa-cd5e318ea6b8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -73,7 +76,7 @@
       <Filter>Source Files\Logic</Filter>
     </ClCompile>
     <ClCompile Include="Globals.cpp">
-      <Filter>Source Files\Helpers</Filter>
+      <Filter>Source Files\Models</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -119,11 +122,11 @@
     <ClInclude Include="InitialConfiguration.h">
       <Filter>Source Files\Logic</Filter>
     </ClInclude>
-    <ClInclude Include="Structs.h">
-      <Filter>Source Files\Helpers</Filter>
-    </ClInclude>
     <ClInclude Include="Globals.h">
-      <Filter>Source Files\Helpers</Filter>
+      <Filter>Source Files\Models</Filter>
+    </ClInclude>
+    <ClInclude Include="Structs.h">
+      <Filter>Source Files\Models</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

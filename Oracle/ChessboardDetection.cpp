@@ -1,38 +1,19 @@
 ﻿#include "ChessboardDetection.h"
 
 // TODO: Document.
-cv::Rect GetBoardROI(const cv::Mat& img, const CLICK& firstClick, const CLICK& secondClick) {
-    int width = std::abs(secondClick.x - firstClick.x);
-    int height = width;
-
-    int roi_x = firstClick.x;
-    int roi_y = firstClick.y;
-
-    return cv::Rect(roi_x, roi_y, width, height);
-}
-
-// TODO: Document.
 double SampleCellCenter(const cv::Mat& gray, int x, int y) {
     // Always use the configured values from sliders
     int patch = g_debugPatchSize;
-    int offset = g_debugOffset;
+    int offsetX = g_debugOffsetX;
+    int offsetY = g_debugOffsetY;
 
-    int half = patch / 2;
-
-    int startingX = x - half;
-    int startingY = y - half + offset;
+    int startingX = x - (patch / 2) + offsetX;
+    int startingY = y - (patch / 2) + offsetY;
 
     cv::Rect roi(startingX, startingY, patch, patch);
     roi &= cv::Rect(0, 0, gray.cols, gray.rows);
 
-    SAMPLE sample;
-    sample.x = startingX;
-    sample.y = startingY;
-    sample.width = patch;
-    sample.height = patch;
-    g_debugSamples.push_back(sample);
-
-    std::cout << "[DEBUG] Sampling cell center at (" << x << ", " << y << ") with patch size " << patch << " and offset " << offset << " resulting in ROI (" << roi.x << ", " << roi.y << ", " << roi.width << ", " << roi.height << ")\n";
+    std::cout << "[DEBUG] Sampling cell at (" << x << ", " << y << ") with patch size " << patch << " and offsets X=" << offsetX << ", Y=" << offsetY << " resulting in ROI (" << roi.x << ", " << roi.y << ", " << roi.width << ", " << roi.height << ")\n";
 
     return cv::mean(gray(roi))[0];
 }
@@ -54,54 +35,6 @@ std::map<std::string, cv::Mat> LoadReferencePieces(LPCWSTR tempDir) {
         }
     }
     return refs;
-}
-
-// TODO: Document.
-int DetectBoardDimensions(cv::Mat screenshot) {
-    if (screenshot.empty()) return 0;
-
-    cv::Rect g_boardRectCV;
-
-    // Validate the chessboard in the click-defined region.
-    cv::Rect boardROI = GetBoardROI(screenshot, g_clicks.first, g_clicks.second);
-    std::cout << "[DEBUG] Board ROI: (" << boardROI.x << ", " << boardROI.y << ", " << boardROI.width << ", " << boardROI.height << ")" << std::endl;
-
-    auto result = ValidateChessboard(screenshot, boardROI, screenshot);
-    if (result) {
-        // Drawing the board on the overlay.
-        const cv::Rect& fixedRect = *result;
-        g_boardRect = { fixedRect.x, fixedRect.y, fixedRect.x + fixedRect.width, fixedRect.y + fixedRect.height };
-        g_boardRectCV = fixedRect;
-
-        // Automatically place sample points in the center of each cell
-        int cellWidth = (g_boardRect.right - g_boardRect.left) / 8;
-        int cellHeight = (g_boardRect.bottom - g_boardRect.top) / 8;
-
-        g_userSamplePoints.clear(); // Clear any existing points
-
-        for (int row = 0; row < 8; row++) {
-            for (int col = 0; col < 8; col++) {
-                SAMPLE sample;
-                sample.x = g_boardRect.left + (col * cellWidth) + (cellWidth / 2) - 3; // Center with 6x6 size
-                sample.y = g_boardRect.top + (row * cellHeight) + (cellHeight / 2) - 3;
-                sample.width = 6;
-                sample.height = 6;
-                g_userSamplePoints.push_back(sample);
-            }
-        }
-
-        std::cout << "[INFO] Placed " << g_userSamplePoints.size() << " sample points in cell centers" << std::endl;
-
-        // Update debug samples with current configuration
-        UpdateDebugSamples();
-    }
-    else {
-        std::cout << "[ERROR] Failed to detect chessboard pattern in the specified region" << std::endl;
-        std::cout << "[ERROR] Please try clicking on different corners of the chessboard" << std::endl;
-        return 0;
-    }
-
-    return 1;
 }
 
 // TODO: Document.
@@ -154,7 +87,7 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
     int cellHeight = (g_boardRect.bottom - g_boardRect.top) / 8;
     
     // Get reference values for piece color detection
-    cv::Mat screenshot = HWND2MAT(hwndDesktop);
+    cv::Mat screenshot = g_userScreenshotReady && !g_userScreenshotGray.empty() ? g_userScreenshotGray : HWND2MAT(hwndDesktop);
     DetectPieceColorCoding(screenshot, cellWidth, cellHeight);
     
     // Extract reference values from the analysis
@@ -235,39 +168,5 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
 
     std::cout << "[INFO] ChessboardDetectionThread stopped" << std::endl;
     return 0;
-}
-
-// TODO: Document.
-void UpdateDebugSamples() {
-    // Clear existing debug samples
-    g_debugSamples.clear();
-    
-    if (g_boardRect.right - g_boardRect.left <= 0 || g_boardRect.bottom - g_boardRect.top <= 0) {
-        return; // Board not detected yet
-    }
-    
-    int cellWidth = (g_boardRect.right - g_boardRect.left) / 8;
-    int cellHeight = (g_boardRect.bottom - g_boardRect.top) / 8;
-    
-    // Generate debug samples for all cells using current configuration
-    for (int row = 0; row < 8; row++) {
-        for (int col = 0; col < 8; col++) {
-            int cellCenterX = g_boardRect.left + (col * cellWidth) + (cellWidth / 2);
-            int cellCenterY = g_boardRect.top + (row * cellHeight) + (cellHeight / 2);
-            
-            // Apply current slider values
-            int patchSize = g_debugPatchSize;
-            int offset = g_debugOffset;
-            int half = patchSize / 2;
-            
-            SAMPLE sample;
-            sample.x = cellCenterX - half;
-            sample.y = cellCenterY - half + offset;
-            sample.width = patchSize;
-            sample.height = patchSize;
-            
-            g_debugSamples.push_back(sample);
-        }
-    }
 }
 

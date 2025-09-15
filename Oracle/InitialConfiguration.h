@@ -28,3 +28,7 @@
  * @return A Rect containing the detected chessboard area if valid, or std::nullopt if not valid.
  */
 std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, const cv::Rect& roi, cv::Mat& debugImg);
+
+cv::Rect GetBoardROI(const cv::Mat& img);
+
+int DetectBoardDimensions();
