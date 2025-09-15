@@ -37,3 +37,5 @@ int g_refBlackPiece = -1;
 int g_refWhitePiece = -1;
 int g_refBoardColor1 = -1;
 int g_refBoardColor2 = -1;
+
+int g_orientation = -1;
