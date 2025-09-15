@@ -11,7 +11,6 @@ void ShowMenu(int imageWidth, int imageHeight) {
         return;
     }
 
-    // Board Detection Section
     ImGui::Text("Board Detection");
     ImGui::Separator();
 
@@ -67,6 +66,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
         g_hasAnalysisStarted = false;
         g_isConfiguringSamplePoints = true;
         g_isRescanning = true;
+        g_isConfiguringCropRegion = false;
         g_boardClicksReady = false;
         g_userScreenshotReady = false;
         g_userScreenshotGray.release();
@@ -74,12 +74,17 @@ void ShowMenu(int imageWidth, int imageHeight) {
         g_viewFirstClick = { -1, -1, 0 };
         g_viewSecondClick = { -1, -1, 0 };
         g_debugSamples.clear();
+        g_cropRects.clear();
         g_boardRect = { 0, 0, 0, 0 };
         g_clicks = { g_viewFirstClick, g_viewSecondClick };
         g_debugPatchSize = 5;
         g_debugOffsetX = 0;
         g_debugOffsetY = 0;
         g_samplePointsSet = false;
+        g_cropRegionSet = false;
+        g_cropPatchSize = 10;
+        g_cropOffsetX = 0;
+        g_cropOffsetY = 0;
         g_refBlackPiece = -1;
         g_refWhitePiece = -1;
         g_refBoardColor1 = -1;
@@ -93,19 +98,11 @@ void ShowMenu(int imageWidth, int imageHeight) {
     ImGui::Text("Sample Point Configuration");
     ImGui::Separator();
     
-    if (g_isConfiguringSamplePoints) {
+    if (g_isConfiguringSamplePoints || g_isConfiguringCropRegion) {
         ImGui::TextColored(ImVec4(0, 1, 0, 1), "Configuration Mode: ACTIVE");
-
-        ImGui::BeginDisabled(!(g_userScreenshotReady && g_boardClicksReady && g_samplePointsSet));
-        if (ImGui::Button("Start Analysis")) {
-            g_isConfiguringSamplePoints = false;
-            g_hasAnalysisStarted = true;
-        }
-        ImGui::EndDisabled();
-        
         ImGui::Text("Sample Points: %d", (int)g_debugSamples.size());
     } else {
-        ImGui::TextColored(ImVec4(1, 1, 0, 1), "Analysis Mode: ACTIVE");
+        ImGui::TextColored(ImVec4(1, 1, 0, 1), (g_hasAnalysisStarted ? "Analysis Mode: ACTIVE" : "Idle"));
         
         if (ImGui::Button("Reset Configuration")) {
             g_isConfiguringSamplePoints = true;
@@ -126,14 +123,16 @@ void ShowMenu(int imageWidth, int imageHeight) {
     static int prevOffsetX = g_debugOffsetX;
     static int prevOffsetY = g_debugOffsetY;
     
-    ImGui::BeginDisabled(g_samplePointsSet);
+    ImGui::BeginDisabled(g_samplePointsSet || g_userScreenshotGray.empty() || !g_boardClicksReady);
     ImGui::SliderInt("Patch Size", &g_debugPatchSize, 1, 64);
-    ImGui::SliderInt("X Offset", &g_debugOffsetX, -32, 32);
-    ImGui::SliderInt("Y Offset", &g_debugOffsetY, -32, 32);
+    ImGui::SliderInt("X Offset", &g_debugOffsetX, -64, 64);
+    ImGui::SliderInt("Y Offset", &g_debugOffsetY, -64, 64);
     if (ImGui::Button("Set Sample Points")) {
         UpdateDebugSamples();
         DetectPieceColorCoding((g_boardRect.right - g_boardRect.left) / 8, (g_boardRect.bottom - g_boardRect.top) / 8);
         g_samplePointsSet = true;
+        g_isConfiguringCropRegion = true;
+        UpdateCropRects();
     }
     ImGui::EndDisabled();
 
@@ -145,13 +144,45 @@ void ShowMenu(int imageWidth, int imageHeight) {
         prevOffsetY = g_debugOffsetY;
     }
 
+    // Track if sliders changed.
+    static int prevCropPatch = g_cropPatchSize;
+    static int prevCropOffX = g_cropOffsetX;
+    static int prevCropOffY = g_cropOffsetY;
+
+    ImGui::Separator();
+    ImGui::Text("Crop Region Parameters");
+    ImGui::BeginDisabled(!g_samplePointsSet || g_cropRegionSet);
+    ImGui::SliderInt("Crop Size", &g_cropPatchSize, 1, 64);
+    ImGui::SliderInt("Crop X Offset", &g_cropOffsetX, -64, 64);
+    ImGui::SliderInt("Crop Y Offset", &g_cropOffsetY, -64, 64);
+
+    // Update crop rects if sliders changed.
+    if (!g_cropRegionSet && g_isConfiguringCropRegion && (prevCropPatch != g_cropPatchSize || prevCropOffX != g_cropOffsetX || prevCropOffY != g_cropOffsetY)) {
+        UpdateCropRects();
+        prevCropPatch = g_cropPatchSize;
+        prevCropOffX = g_cropOffsetX;
+        prevCropOffY = g_cropOffsetY;
+    }
+
+    if (ImGui::Button("Set Crop Region")) {
+        UpdateCropRects();
+        g_cropRegionSet = true;
+        g_isConfiguringCropRegion = false;
+        int cellW = (g_boardRect.right - g_boardRect.left) / 8;
+        int cellH = (g_boardRect.bottom - g_boardRect.top) / 8;
+        cv::Mat src = g_userScreenshotReady && !g_userScreenshotGray.empty() ? g_userScreenshotGray : HWND2MAT(GetDesktopWindow());
+        GenerateReferencePieceCrops(src, cellW, cellH);
+        g_hasAnalysisStarted = true;
+        std::cout << "[INFO] Reference crops generated to temp/ and analysis started" << std::endl;
+    }
+    ImGui::EndDisabled();
+
     ImGui::Separator();
     ImGui::Text("Reference Values");
     ImGui::Text("Black Piece Intensity: %d", g_refBlackPiece);
     ImGui::Text("White Piece Intensity: %d", g_refWhitePiece);
     ImGui::Text("Board Color 1: %d", g_refBoardColor1);
     ImGui::Text("Board Color 2: %d", g_refBoardColor2);
-
 
     ImGui::End();
 }

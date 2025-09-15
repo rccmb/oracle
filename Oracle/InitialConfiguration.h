@@ -58,3 +58,9 @@ int DetectPieceColorCoding(int cellWidth, int cellHeight);
  * @return int Returns 1 if the chessboard was successfully detected, 0 otherwise.
  */
 int DetectBoardDimensions();
+
+// TODO: Documentation.
+void UpdateCropRects();
+
+// TODO: Documentation.
+void GenerateReferencePieceCrops(const cv::Mat& gray, int cellWidth, int cellHeight);

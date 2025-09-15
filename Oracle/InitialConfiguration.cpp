@@ -49,6 +49,60 @@ void UpdateDebugSamples() {
     }
 }
 
+void UpdateCropRects() {
+	g_cropRects.clear();
+
+	if (g_boardRect.right - g_boardRect.left <= 0 || g_boardRect.bottom - g_boardRect.top <= 0) {
+		return;
+	}
+
+	int cellWidth = (g_boardRect.right - g_boardRect.left) / 8;
+	int cellHeight = (g_boardRect.bottom - g_boardRect.top) / 8;
+
+	for (int row = 0; row < 8; row++) {
+		for (int col = 0; col < 8; col++) {
+			SAMPLE rect;
+			int cellCenterX = g_boardRect.left + (col * cellWidth) + (cellWidth / 2);
+			int cellCenterY = g_boardRect.top + (row * cellHeight) + (cellHeight / 2);
+			rect.x = cellCenterX - (g_cropPatchSize / 2) + g_cropOffsetX;
+			rect.y = cellCenterY - (g_cropPatchSize / 2) + g_cropOffsetY;
+			rect.width = g_cropPatchSize;
+			rect.height = g_cropPatchSize;
+			g_cropRects.push_back(rect);
+		}
+	}
+}
+
+static void SaveEdge(const cv::Mat& gray, const cv::Rect& roi, const std::string& path) {
+	cv::Rect bounded = roi & cv::Rect(0, 0, gray.cols, gray.rows);
+	if (bounded.width <= 0 || bounded.height <= 0) return;
+	cv::Mat crop = gray(bounded).clone();
+	cv::Mat edges;
+	cv::Canny(crop, edges, 50, 150);
+	cv::imwrite(path, edges);
+}
+
+void GenerateReferencePieceCrops(const cv::Mat& gray, int cellWidth, int cellHeight) {
+	std::filesystem::create_directories("temp");
+
+	auto rectFor = [&](int row, int col) -> cv::Rect {
+		int centerX = g_boardRect.left + (col * cellWidth) + (cellWidth / 2);
+		int centerY = g_boardRect.top + (row * cellHeight) + (cellHeight / 2);
+		int x = centerX - (g_cropPatchSize / 2) + g_cropOffsetX;
+		int y = centerY - (g_cropPatchSize / 2) + g_cropOffsetY;
+		return cv::Rect(x, y, g_cropPatchSize, g_cropPatchSize);
+	};
+
+	for (int col = 0; col < 5; ++col) {
+		SaveEdge(gray, rectFor(0, col), std::string("temp/piece_edges_row0_col") + std::to_string(col) + ".png");
+	}
+	SaveEdge(gray, rectFor(1, 0), "temp/piece_edges_row1_col0.png");
+	for (int col = 0; col < 5; ++col) {
+		SaveEdge(gray, rectFor(7, col), std::string("temp/piece_edges_row7_col") + std::to_string(col) + ".png");
+	}
+	SaveEdge(gray, rectFor(6, 0), "temp/piece_edges_row6_col0.png");
+}
+
 int DetectPieceColorCoding(int cellWidth, int cellHeight) {
 	// Hide debug samples during analysis so they don't interfere with detection visuals.
 	g_isConfiguringSamplePoints = false;

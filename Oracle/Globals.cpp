@@ -3,8 +3,10 @@
 RECT g_boardRect = { 0, 0, 0, 0 };
 
 std::vector<SAMPLE> g_debugSamples = {};
+std::vector<SAMPLE> g_cropRects = {};
 
 bool g_isConfiguringSamplePoints = true;
+bool g_isConfiguringCropRegion = false;
 bool g_hasAnalysisStarted = false;
 bool g_isRescanning = false;
 bool g_boardClicksReady = false;
@@ -14,6 +16,9 @@ int g_clickStage = 0;
 int g_debugPatchSize = 5;
 int g_debugOffsetX = 0; 
 int g_debugOffsetY = 0; 
+int g_cropPatchSize = 10;
+int g_cropOffsetX = 0;
+int g_cropOffsetY = 0;
 
 std::pair<CLICK, CLICK> g_clicks = {
     {-1, -1, 0},
@@ -26,6 +31,7 @@ CLICK g_viewSecondClick = { -1, -1, 0 };
 cv::Mat g_userScreenshotGray;
 bool g_userScreenshotReady = false;
 bool g_samplePointsSet = false;
+bool g_cropRegionSet = false;
 
 int g_refBlackPiece = -1;
 int g_refWhitePiece = -1;

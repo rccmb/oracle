@@ -23,6 +23,22 @@ void CaptureBoardClicks(HWND hwndDesktop) {
     }
 }
 
+void ToggleMenu(HWND hwndOverlay) {
+    IMGUI_MENU_VISIBLE = !IMGUI_MENU_VISIBLE;
+
+    // Enable/disable click-through.
+    LONG_PTR exStyle = GetWindowLongPtr(hwndOverlay, GWL_EXSTYLE);
+    if (IMGUI_MENU_VISIBLE) {
+        SetWindowLongPtr(hwndOverlay, GWL_EXSTYLE, exStyle & ~(WS_EX_TRANSPARENT | WS_EX_NOACTIVATE));
+        SetForegroundWindow(hwndOverlay);
+    }
+    else {
+        SetWindowLongPtr(hwndOverlay, GWL_EXSTYLE, exStyle | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE);
+    }
+
+    Sleep(100);
+}
+
 void RenderFrame() {
     ImGui_ImplDX11_NewFrame();
     ImGui_ImplWin32_NewFrame();
@@ -50,6 +66,18 @@ void RenderFrame() {
                 ImVec2((float)s.x, (float)s.y),
                 ImVec2((float)(s.x + s.width), (float)(s.y + s.height)),
                 IM_COL32(0, 255, 255, 128)
+            );
+        }
+    }
+
+    // Draw crop rects during crop configuration.
+    if (!g_isRescanning && g_isConfiguringCropRegion && !g_cropRects.empty() &&
+        (g_boardRect.right - g_boardRect.left) > 0 && (g_boardRect.bottom - g_boardRect.top) > 0) {
+        for (const SAMPLE& r : g_cropRects) {
+            draw_list->AddRect(
+                ImVec2((float)r.x, (float)r.y),
+                ImVec2((float)(r.x + r.width), (float)(r.y + r.height)),
+                IM_COL32(255, 255, 0, 200), 0.0f, 0, 1.0f
             );
         }
     }
@@ -96,22 +124,10 @@ int main() {
         if ((GetAsyncKeyState(VK_LCONTROL) & 0x8000) && 
             (GetAsyncKeyState(VK_F1) & 0x8000)) {
 
-            IMGUI_MENU_VISIBLE = !IMGUI_MENU_VISIBLE;
-
-			// Enable/disable click-through.
-            LONG_PTR exStyle = GetWindowLongPtr(hwndOverlay, GWL_EXSTYLE);
-            if (IMGUI_MENU_VISIBLE) {
-                SetWindowLongPtr(hwndOverlay, GWL_EXSTYLE, exStyle & ~(WS_EX_TRANSPARENT | WS_EX_NOACTIVATE));
-                SetForegroundWindow(hwndOverlay);
-            }
-            else {
-                SetWindowLongPtr(hwndOverlay, GWL_EXSTYLE, exStyle | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE);
-            }
-
-            Sleep(100);
+            ToggleMenu(hwndOverlay);
         }
 
-        // Capture board clicks using hotkey
+        // Capture board clicks using hotkey. ONLY USED IN CONFIGURATION.
         if (!g_boardClicksReady && IMGUI_MENU_VISIBLE && g_userScreenshotReady) {
             CaptureBoardClicks(hwndDesktop);
         }
