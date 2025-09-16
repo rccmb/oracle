@@ -83,7 +83,7 @@ void RenderFrame() {
     }
 
     // Draw detected piece letters over each occupied cell during analysis.
-    if (g_hasAnalysisStarted) {
+    /*if (g_hasAnalysisStarted) {
         int cellWidth = (g_boardRect.right - g_boardRect.left) / 8;
         int cellHeight = (g_boardRect.bottom - g_boardRect.top) / 8;
         for (int row = 0; row < 8; ++row) {
@@ -96,7 +96,7 @@ void RenderFrame() {
                 ImGui::GetForegroundDrawList()->AddText(pos, IM_COL32(139, 0, 139, 255), std::string(1, letter).c_str());
             }
         }
-    }
+    }*/
 
 	// Showing the ImGui menu.
     if (IMGUI_MENU_VISIBLE) {

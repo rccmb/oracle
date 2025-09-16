@@ -44,3 +44,9 @@ std::vector<std::string> g_boardGridRows(8, std::string(8, ' '));
 std::filesystem::path g_tempDir = std::filesystem::path("temp");
 
 int g_orientation = -1;
+
+std::vector<char> g_letterDrawQueue;
+std::vector<char> g_prevLetterDrawQueue;
+
+bool g_boardChanged;
+std::mutex g_boardChangedMutex;

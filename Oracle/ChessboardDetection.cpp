@@ -71,12 +71,13 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
         refChamfers.push_back(std::move(data));
     }
 
+    std::fill(g_boardGridRows.begin(), g_boardGridRows.end(), std::string(8, ' '));
+
     // Continuous analysis loop.
     while(true) {
         while (g_hasAnalysisStarted) {
             cv::Mat frame = HWND2MAT(hwndDesktop);
             std::fill(g_detectedLetters.begin(), g_detectedLetters.end(), ' ');
-            std::fill(g_boardGridRows.begin(), g_boardGridRows.end(), std::string(8, ' '));
 
             for (int row = 0; row < 8; row++) {
                 for (int col = 0; col < 8; col++) {
@@ -154,15 +155,37 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                 }
             }
 
-            for (int r = 0; r < 8; ++r) {
-                for (int c = 0; c < 8; ++c) {
-                    g_boardGridRows[r][c] = g_detectedLetters[r * 8 + c];
+            // Detect changes and update board rows only when state changes.
+            bool changed = false;
+            if (g_detectedLetters.size() != g_prevLetterDrawQueue.size()) {
+                changed = true;
+            }
+            else {
+                for (size_t i = 0; i < g_detectedLetters.size(); ++i) {
+                    if (g_detectedLetters[i] != g_prevLetterDrawQueue[i]) {
+                        changed = true;
+                        break;
+                    }
                 }
             }
 
-            std::cout << "Frame processed.\n";
+            if (changed) {
+                std::cout << "Change detected.\n";
+                g_prevLetterDrawQueue = g_detectedLetters;
 
-            Sleep(10);
+                // Build grid rows from detected letters.
+                std::vector<std::string> newRows(8);
+                for (int row = 0; row < 8; ++row) {
+                    std::string rowStr;
+                    rowStr.reserve(8);
+                    for (int col = 0; col < 8; ++col) {
+                        rowStr.push_back(g_detectedLetters[row * 8 + col]);
+                    }
+                    newRows[row] = rowStr;
+                }
+
+                g_boardGridRows = std::move(newRows);
+            }
         }
 
         Sleep(10);

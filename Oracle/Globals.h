@@ -55,5 +55,10 @@ extern std::vector<std::string> g_boardGridRows;
 
 extern int g_orientation;
 
-// Paths
 extern std::filesystem::path g_tempDir;
+
+extern std::vector<char> g_letterDrawQueue;
+extern std::vector<char> g_prevLetterDrawQueue;
+
+extern bool g_boardChanged;
+extern std::mutex g_boardChangedMutex;

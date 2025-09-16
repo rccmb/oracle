@@ -7,6 +7,10 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc.hpp>
 
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_dx11.h"
+
 // Struct definition to hold click information.
 // Each CLICK contains the x and y coordinates of the click and the grayscale value of the pixel at that location.
 // Used for defining the dimensions of the chessboard and board theme.

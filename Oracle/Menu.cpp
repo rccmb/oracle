@@ -187,7 +187,6 @@ void ShowMenu(int imageWidth, int imageHeight) {
     ImGui::Separator();
     ImGui::Text("Analysis Settings");
     ImGui::SliderInt("Tolerance", &g_analysisTolerance, 1, 64);
-
     ImGui::Separator();
     ImGui::Text("Detected Board (FEN grid)");
     for (int r = 0; r < 8; ++r) {
