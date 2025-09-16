@@ -248,15 +248,6 @@ void UpdateCropRects() {
     }
 }
 
-void SaveEdge(const cv::Mat& gray, const cv::Rect& roi, const std::string& path) {
-    cv::Rect bounded = roi & cv::Rect(0, 0, gray.cols, gray.rows);
-    if (bounded.width <= 0 || bounded.height <= 0) return;
-    cv::Mat crop = gray(bounded).clone();
-    cv::Mat edges;
-    cv::Canny(crop, edges, 50, 150);
-    cv::imwrite((g_tempDir / path).string(), edges);
-}
-
 void GenerateReferencePieceCrops(const cv::Mat& gray, int cellWidth, int cellHeight) {
     if (std::filesystem::exists(g_tempDir)) {
         std::filesystem::remove_all(g_tempDir);
@@ -277,21 +268,21 @@ void GenerateReferencePieceCrops(const cv::Mat& gray, int cellWidth, int cellHei
 
     for (int col = 0; col < 5; ++col) {
         g_orientation == 0 
-            ? SaveEdge(gray, rectFor(0, col), std::string("black_") + (char)pieceNamesBlack[col] + ".png")
-			: SaveEdge(gray, rectFor(0, col), std::string("white_") + (char)pieceNamesWhite[col] + ".png");
+            ? SaveReferencePiece(gray, rectFor(0, col), std::string("black_") + (char)pieceNamesBlack[col] + ".png")
+			: SaveReferencePiece(gray, rectFor(0, col), std::string("white_") + (char)pieceNamesWhite[col] + ".png");
     }
     g_orientation == 0
-        ? SaveEdge(gray, rectFor(1, 0), "black_p.png")
-        : SaveEdge(gray, rectFor(1, 0), "white_P.png");
+        ? SaveReferencePiece(gray, rectFor(1, 0), "black_p.png")
+        : SaveReferencePiece(gray, rectFor(1, 0), "white_P.png");
     
     for (int col = 0; col < 5; ++col) {
         g_orientation == 0
-            ? SaveEdge(gray, rectFor(7, col), std::string("white_") + (char)pieceNamesWhite[col] + ".png")
-            : SaveEdge(gray, rectFor(7, col), std::string("black_") + (char)pieceNamesBlack[col] + ".png");
+            ? SaveReferencePiece(gray, rectFor(7, col), std::string("white_") + (char)pieceNamesWhite[col] + ".png")
+            : SaveReferencePiece(gray, rectFor(7, col), std::string("black_") + (char)pieceNamesBlack[col] + ".png");
     }
     g_orientation == 0
-        ? SaveEdge(gray, rectFor(6, 0), "white_P.png")
-        : SaveEdge(gray, rectFor(6, 0), "black_p.png");
+        ? SaveReferencePiece(gray, rectFor(6, 0), "white_P.png")
+        : SaveReferencePiece(gray, rectFor(6, 0), "black_p.png");
 
 	// Give time for files to flush.
     Sleep(300);

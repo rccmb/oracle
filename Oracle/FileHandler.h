@@ -16,17 +16,14 @@
 #include <fstream>
 
 #include "Utils.h"
-#include "Overlay.h"
 #include "Structs.h"
 #include "Globals.h"
-#include "InitialConfiguration.h"
-#include "FileHandler.h"
 
 // TODO: Documentation.
-double SampleCellCenter(const cv::Mat& gray, int x, int y);
+cv::Mat LoadWithImdecode(const std::filesystem::path& p);
 
 // TODO: Documentation.
-double CompareEdges(const cv::Mat& a, const cv::Mat& b);
+void SaveReferencePiece(const cv::Mat& gray, const cv::Rect& roi, const std::string& path);
 
 // TODO: Documentation.
-DWORD WINAPI ChessboardDetectionThread(LPVOID param);
+std::map<std::string, cv::Mat> LoadReferencePieces(const std::filesystem::path& tempDir);

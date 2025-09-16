@@ -131,6 +131,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Direct3D.cpp" />
+    <ClCompile Include="FileHandler.cpp" />
     <ClCompile Include="Globals.cpp" />
     <ClCompile Include="InitialConfiguration.cpp" />
     <ClCompile Include="Menu.cpp" />
@@ -148,6 +149,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Direct3D.h" />
+    <ClInclude Include="FileHandler.h" />
     <ClInclude Include="Globals.h" />
     <ClInclude Include="InitialConfiguration.h" />
     <ClInclude Include="Menu.h" />

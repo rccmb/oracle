@@ -17,6 +17,7 @@
 #include "Structs.h"
 #include "Globals.h"
 #include "Utils.h"
+#include "FileHandler.h"
 
 /**
  * @brief Records user mouse clicks on the desktop to define two corners of the chessboard.
@@ -61,9 +62,6 @@ int DetectBoardDimensions();
 
 // TODO: Documentation.
 void UpdateCropRects();
-
-// TODO: Documentation.
-void SaveEdge(const cv::Mat& gray, const cv::Rect& roi, const std::string& path);
 
 // TODO: Documentation.
 void GenerateReferencePieceCrops(const cv::Mat& gray, int cellWidth, int cellHeight);

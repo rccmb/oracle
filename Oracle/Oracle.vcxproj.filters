@@ -78,6 +78,9 @@
     <ClCompile Include="Globals.cpp">
       <Filter>Source Files\Models</Filter>
     </ClCompile>
+    <ClCompile Include="FileHandler.cpp">
+      <Filter>Source Files\Helpers</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Overlay.h">
@@ -127,6 +130,9 @@
     </ClInclude>
     <ClInclude Include="Structs.h">
       <Filter>Source Files\Models</Filter>
+    </ClInclude>
+    <ClInclude Include="FileHandler.h">
+      <Filter>Source Files\Helpers</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
