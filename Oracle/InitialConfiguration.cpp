@@ -263,8 +263,17 @@ void GenerateReferencePieceCrops(const cv::Mat& gray, int cellWidth, int cellHei
         };
 
 	// Depends on orientation.
-    std::vector<uchar> pieceNamesBlack = { 'r', 'n', 'b', 'q', 'k', 'p' }; // 'r', 'n', 'b', 'q', 'k', 'p' for black.
-    std::vector<uchar> pieceNamesWhite = { 'R', 'N', 'B', 'Q', 'K', 'P' }; // 'R', 'N', 'B', 'Q', 'K', 'P' for white.
+    std::vector<uchar> pieceNamesBlack;
+    std::vector<uchar> pieceNamesWhite;
+    if (g_orientation == 0) { // Black up.
+        pieceNamesBlack = { 'r', 'n', 'b', 'q', 'k', 'p' }; 
+        pieceNamesWhite = { 'R', 'N', 'B', 'Q', 'K', 'P' }; 
+    }
+	else { // White up.
+        pieceNamesBlack = { 'r', 'n', 'b', 'k', 'q', 'p' };
+        pieceNamesWhite = { 'R', 'N', 'B', 'K', 'Q', 'P' };
+    }
+    
 
     for (int col = 0; col < 5; ++col) {
         g_orientation == 0 

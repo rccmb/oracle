@@ -32,6 +32,45 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
 
     std::map<std::string, cv::Mat> refs = LoadReferencePieces(g_tempDir);
 
+    // CHAMFER PREPROCESSING OF REFERENCES. DISTANCE TRANSFORMS.
+    struct RefChamferData {
+        std::string name;
+        bool isWhite;
+        cv::Mat dt;
+        cv::Size size;
+    };
+
+    std::vector<RefChamferData> refChamfers;
+    refChamfers.reserve(refs.size());
+
+    const int chamferDilate = 1; // tolerance for tiny shifts
+    cv::Mat dilateKernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(chamferDilate * 2 + 1, chamferDilate * 2 + 1));
+
+    for (const auto& kv : refs) {
+        const std::string& name = kv.first;
+        const cv::Mat& refImg = kv.second;
+        if (refImg.empty()) continue;
+
+        cv::Mat refEdges;
+        cv::threshold(refImg, refEdges, 0, 255, cv::THRESH_BINARY);
+        if (chamferDilate > 0) {
+            cv::dilate(refEdges, refEdges, dilateKernel);
+        }
+
+        // Distance to nearest edge pixel.
+        cv::Mat refEdgesInv;
+        cv::bitwise_not(refEdges, refEdgesInv);
+        cv::Mat dt;
+        cv::distanceTransform(refEdgesInv, dt, cv::DIST_L2, 3);
+
+        RefChamferData data;
+        data.name = name;
+        data.isWhite = (name.rfind("white_", 0) == 0);
+        data.dt = dt;
+        data.size = dt.size();
+        refChamfers.push_back(std::move(data));
+    }
+
     // Continuous analysis loop.
     while(true) {
         while (g_hasAnalysisStarted) {
@@ -53,49 +92,65 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                         continue;
                     }
 
-                    // Build crop ROI.
-                    int x = cx - (g_cropPatchSize / 2) + g_cropOffsetX;
-                    int y = cy - (g_cropPatchSize / 2) + g_cropOffsetY;
-                    cv::Rect roi(x, y, g_cropPatchSize, g_cropPatchSize);
+                    cv::Rect roi;
+                    if (g_cropRects.size() == 64) {
+                        const SAMPLE& s = g_cropRects[idx];
+                        roi = cv::Rect(s.x, s.y, s.width, s.height);
+                    } else {
+                        int x = cx - (g_cropPatchSize / 2) + g_cropOffsetX;
+                        int y = cy - (g_cropPatchSize / 2) + g_cropOffsetY;
+                        roi = cv::Rect(x, y, g_cropPatchSize, g_cropPatchSize);
+                    }
                     roi &= cv::Rect(0, 0, frame.cols, frame.rows);
                     if (roi.width <= 0 || roi.height <= 0) continue;
 
-                    // Prepare cell edges.
-                    cv::Mat cell = frame(roi).clone();
+                    cv::Mat cellGray = frame(roi).clone();
                     cv::Mat cellEdges;
-                    cv::Canny(cell, cellEdges, 50, 150);
+                    cv::Canny(cellGray, cellEdges, 50, 150);
+                    cv::threshold(cellEdges, cellEdges, 0, 255, cv::THRESH_BINARY);
 
-                    // Compare against references.
-                    double bestScore = 1e18;
+                    double bestChamfer = 1e18;
                     char bestLetter = looksBlack ? 'p' : 'P';
-                    for (const auto& kv : refs) {
-                        const std::string& name = kv.first;
-                        const cv::Mat& ref = kv.second;
-                        if (ref.empty()) continue;
+                    std::string bestName;
 
-                        bool hasWhitePrefix = name.rfind("white_", 0) == 0;
-                        bool hasBlackPrefix = name.rfind("black_", 0) == 0;
-                        if (looksBlack && hasWhitePrefix) continue;
-                        if (looksWhite && hasBlackPrefix) continue;
+                    cv::Mat candidateResized;
+                    std::vector<cv::Point> edgePoints;
 
-                        double score = CompareEdges(cellEdges, ref);
-                        if (score < bestScore) {
-                            bestScore = score;
-                            if (name.find(looksBlack ? '_p' : '_P') != std::string::npos) bestLetter = looksBlack ? 'p' : 'P';
-                            else if (name.find(looksBlack ? '_n' : '_N') != std::string::npos) bestLetter = looksBlack ? 'n' : 'N';
-                            else if (name.find(looksBlack ? '_b' : '_B') != std::string::npos) bestLetter = looksBlack ? 'b' : 'B';
-                            else if (name.find(looksBlack ? '_r' : '_R') != std::string::npos) bestLetter = looksBlack ? 'r' : 'R';
-                            else if (name.find(looksBlack ? '_q' : '_Q') != std::string::npos) bestLetter = looksBlack ? 'q' : 'Q';
-                            else if (name.find(looksBlack ? '_k' : '_K') != std::string::npos) bestLetter = looksBlack ? 'k' : 'K';
+                    for (const auto& rd : refChamfers) {
+                        if (rd.isWhite && looksBlack) continue;
+                        if (!rd.isWhite && looksWhite) continue;
+
+                        if (candidateResized.size() != rd.size) {
+                            cv::resize(cellEdges, candidateResized, rd.size, 0, 0, cv::INTER_NEAREST);
+                        }
+
+                        edgePoints.clear();
+                        cv::findNonZero(candidateResized, edgePoints);
+                        if (edgePoints.empty()) continue;
+
+                        const cv::Mat& dt = rd.dt;
+                        double sumDist = 0.0;
+                        for (const cv::Point& p : edgePoints) {
+                            int px = std::clamp(p.x, 0, dt.cols - 1);
+                            int py = std::clamp(p.y, 0, dt.rows - 1);
+                            sumDist += dt.at<float>(py, px);
+                        }
+                        double meanDist = sumDist / (double)edgePoints.size();
+
+                        if (meanDist < bestChamfer) {
+                            bestChamfer = meanDist;
+                            bestName = rd.name;
+
+                            char pieceChar = bestName.back(); 
+                            bestLetter = pieceChar;
                         }
                     }
 
-                    double maxPossible = 255.0 * roi.width * roi.height;
-                    double similarity = 1.0 - std::min(bestScore / maxPossible, 1.0);
+                    const double chamferScale = 3.0;
+                    double similarity = std::exp(-bestChamfer / chamferScale);
                     if (similarity >= 0.90) {
                         g_detectedLetters[idx] = bestLetter;
                     }
-
                 }
             }
 
