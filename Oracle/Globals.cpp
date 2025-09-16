@@ -38,4 +38,9 @@ int g_refWhitePiece = -1;
 int g_refBoardColor1 = -1;
 int g_refBoardColor2 = -1;
 
+int g_analysisTolerance = 5;
+std::vector<char> g_detectedLetters(64, ' ');
+std::vector<std::string> g_boardGridRows(8, std::string(8, ' '));
+std::filesystem::path g_tempDir = std::filesystem::path("temp");
+
 int g_orientation = -1;

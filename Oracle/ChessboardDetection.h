@@ -13,6 +13,7 @@
 #include <numeric>
 #include <string>
 #include <filesystem>
+#include <fstream>
 
 #include "Utils.h"
 #include "Overlay.h"
@@ -27,7 +28,10 @@ double SampleCellCenter(const cv::Mat& gray, int x, int y);
 double CompareEdges(const cv::Mat& a, const cv::Mat& b);
 
 // TODO: Documentation.
-std::map<std::string, cv::Mat> LoadReferencePieces(LPCWSTR tempDir);
+cv::Mat LoadWithImdecode(const std::filesystem::path& p);
+
+// TODO: Documentation.
+std::map<std::string, cv::Mat> LoadReferencePieces(const std::filesystem::path& tempDir);
 
 // TODO: Documentation.
 DWORD WINAPI ChessboardDetectionThread(LPVOID param);

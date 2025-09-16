@@ -49,4 +49,11 @@ extern int g_refWhitePiece;
 extern int g_refBoardColor1;
 extern int g_refBoardColor2;
 
+extern int g_analysisTolerance;
+extern std::vector<char> g_detectedLetters;
+extern std::vector<std::string> g_boardGridRows;
+
 extern int g_orientation;
+
+// Paths
+extern std::filesystem::path g_tempDir;

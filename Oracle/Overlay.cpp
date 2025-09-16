@@ -7,21 +7,6 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         return true;
 
     switch (msg) {
-    case WM_PAINT: {
-        PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hwnd, &ps);
-
-        HBRUSH clearBrush = CreateSolidBrush(RGB(0, 0, 0));
-        FillRect(hdc, &ps.rcPaint, clearBrush);
-        DeleteObject(clearBrush);
-        
-        EndPaint(hwnd, &ps);
-    } break;
-
-    case WM_CHESSBOARD_DETECTED: {
-        InvalidateRect(hwnd, NULL, TRUE);
-    } break;
-
     case WM_DESTROY:
         PostQuitMessage(0);
         break;

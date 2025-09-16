@@ -11,8 +11,6 @@ double SampleCellCenter(const cv::Mat& gray, int x, int y) {
     cv::Rect roi(startingX, startingY, patch, patch);
     roi &= cv::Rect(0, 0, gray.cols, gray.rows);
 
-    std::cout << "[DEBUG] Sampling cell at (" << x << ", " << y << ") with patch size " << patch << " and offsets X=" << offsetX << ", Y=" << offsetY << " resulting in ROI (" << roi.x << ", " << roi.y << ", " << roi.width << ", " << roi.height << ")\n";
-
     return cv::mean(gray(roi))[0];
 }
 
@@ -23,110 +21,152 @@ double CompareEdges(const cv::Mat& a, const cv::Mat& b) {
     return cv::sum(diff)[0];
 }
 
-std::map<std::string, cv::Mat> LoadReferencePieces(LPCWSTR tempDir) {
-    std::map<std::string, cv::Mat> refs;
-    for (const auto& entry : std::filesystem::directory_iterator(tempDir)) {
-        if (entry.path().extension() == ".png") {
-            refs[entry.path().stem().string()] = cv::imread(entry.path().string(), cv::IMREAD_GRAYSCALE);
+cv::Mat LoadWithImdecode(const std::filesystem::path& p) {
+    std::vector<uchar> buffer;
+    {
+        std::ifstream ifs(p, std::ios::binary);
+        if (!ifs) {
+            return {};
+        }
+
+        ifs.seekg(0, std::ios::end);
+        std::streamsize size = ifs.tellg();
+        ifs.seekg(0, std::ios::beg);
+
+        if (size <= 0) {
+            return {};
+        }
+
+        buffer.resize(static_cast<size_t>(size));
+        if (!ifs.read(reinterpret_cast<char*>(buffer.data()), size)) {
+            return {};
         }
     }
+
+    cv::Mat img = cv::imdecode(buffer, cv::IMREAD_UNCHANGED);
+    return img;
+
+}
+
+std::map<std::string, cv::Mat> LoadReferencePieces(const std::filesystem::path& tempDir) {
+    std::map<std::string, cv::Mat> refs;
+
+    auto absTempDir = std::filesystem::absolute(tempDir);
+    if (!std::filesystem::exists(absTempDir)) {
+        return refs;
+    }
+
+    for (const auto& entry : std::filesystem::directory_iterator(absTempDir)) {
+        if (!entry.is_regular_file()) continue;
+
+        auto ext = entry.path().extension().string();
+        if (ext != ".png" && ext != ".PNG") continue;
+
+        auto stem = entry.path().stem().string();
+
+        cv::Mat img = LoadWithImdecode(entry.path());
+        if (img.empty()) {
+            continue;
+        }
+
+        refs[stem] = img;
+    }
+
     return refs;
 }
 
 DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
+	std::cout << "[INFO] Chessboard detection thread started.\n";
     HWND hwndOverlay = (HWND)param;
     HWND hwndDesktop = GetDesktopWindow();
-    
-    // Wait for analysis to start
-    while (!g_hasAnalysisStarted) {
-        Sleep(100);
-    }
-    
-    std::cout << "[INFO] ChessboardDetectionThread started analysis" << std::endl;
     
     // Board dimensions.
     int cellWidth = (g_boardRect.right - g_boardRect.left) / 8;
     int cellHeight = (g_boardRect.bottom - g_boardRect.top) / 8;
-    
-    cv::Mat screenshot = HWND2MAT(hwndDesktop);
-    
-    // Extract reference values from the analysis
-    /*std::vector<double> sampleValues;
-    for (int row = 0; row < 8; row++) {
-        for (int col = 0; col < 8; col++) {
-            int cellCenterX = g_boardRect.left + (col * cellWidth) + (cellWidth / 2);
-            int cellCenterY = g_boardRect.top + (row * cellHeight) + (cellHeight / 2);
-            double value = SampleCellCenter(screenshot, cellCenterX, cellCenterY);
-            sampleValues.push_back(value);
-        }
-    }
-    
-    double refBlack = *std::min_element(sampleValues.begin(), sampleValues.end());
-    double refWhite = *std::max_element(sampleValues.begin(), sampleValues.end());
-    int tolerance = 15;
-    
-    std::cout << "[INFO] Reference values - Black: " << refBlack << ", White: " << refWhite << std::endl;*/
-    
-    // Continuous analysis loop
-    while (g_hasAnalysisStarted) {
-        cv::Mat frame = HWND2MAT(hwndDesktop);
-        std::string fen;
-        int globalEmptyCount = 0;
-        int globalBlackCount = 0;
-        int globalWhiteCount = 0;
-        
-        for (int row = 0; row < 8; ++row) {
-            int emptyCount = 0;
-            for (int col = 0; col < 8; ++col) {
-                int cx = g_boardRect.left + (col * cellWidth) + (cellWidth / 2);
-                int cy = g_boardRect.top + (row * cellHeight) + (cellHeight / 2);
 
-                // Use configured values for sampling
-                double val = SampleCellCenter(frame, cx, cy);
+    std::map<std::string, cv::Mat> refs = LoadReferencePieces(g_tempDir);
 
-                // Piece color detection
-                /*bool isBlack = std::abs(val - refBlack) < tolerance;
-                bool isWhite = std::abs(val - refWhite) < tolerance;*/
+    // Continuous analysis loop.
+    while(true) {
+        while (g_hasAnalysisStarted) {
+            cv::Mat frame = HWND2MAT(hwndDesktop);
+            std::fill(g_detectedLetters.begin(), g_detectedLetters.end(), ' ');
+            std::fill(g_boardGridRows.begin(), g_boardGridRows.end(), std::string(8, ' '));
 
-                std::cout << "[DEBUG] Cell (" << row << ", " << col << ") brightness: " << val 
-                    << (g_refBlackPiece ? " [Black]" : g_refWhitePiece ? " [White]" : " [Empty]") << std::endl;
+            for (int row = 0; row < 8; row++) {
+                for (int col = 0; col < 8; col++) {
+                    int idx = row * 8 + col;
+                    int cx = g_boardRect.left + (col * cellWidth) + (cellWidth / 2);
+                    int cy = g_boardRect.top + (row * cellHeight) + (cellHeight / 2);
 
-                // Count pieces for statistics
-                if (g_refBlackPiece) {
-                    globalBlackCount++;
-                } else if (g_refWhitePiece) {
-                    globalWhiteCount++;
-                } else {
-                    globalEmptyCount++;
-                }
-
-                // Build FEN notation
-                if (!g_refBlackPiece && !g_refWhitePiece) {
-                    ++emptyCount;
-                }
-                else {
-                    if (emptyCount > 0) {
-                        fen += std::to_string(emptyCount);
-                        emptyCount = 0;
+                    // Determine occupancy by brightness proximity.
+                    double val = SampleCellCenter(frame, cx, cy);
+                    bool looksBlack = (g_refBlackPiece >= 0) && (std::abs(val - g_refBlackPiece) <= g_analysisTolerance);
+                    bool looksWhite = (g_refWhitePiece >= 0) && (std::abs(val - g_refWhitePiece) <= g_analysisTolerance);
+                    if (!looksBlack && !looksWhite) {
+                        continue;
                     }
-                    fen += (g_refBlackPiece ? "b" : "w"); // Simple piece representation
+
+                    // Build crop ROI.
+                    int x = cx - (g_cropPatchSize / 2) + g_cropOffsetX;
+                    int y = cy - (g_cropPatchSize / 2) + g_cropOffsetY;
+                    cv::Rect roi(x, y, g_cropPatchSize, g_cropPatchSize);
+                    roi &= cv::Rect(0, 0, frame.cols, frame.rows);
+                    if (roi.width <= 0 || roi.height <= 0) continue;
+
+                    // Prepare cell edges.
+                    cv::Mat cell = frame(roi).clone();
+                    cv::Mat cellEdges;
+                    cv::Canny(cell, cellEdges, 50, 150);
+
+                    // Compare against references.
+                    double bestScore = 1e18;
+                    char bestLetter = looksBlack ? 'p' : 'P';
+                    for (const auto& kv : refs) {
+                        const std::string& name = kv.first;
+                        const cv::Mat& ref = kv.second;
+                        if (ref.empty()) continue;
+
+                        bool hasWhitePrefix = name.rfind("white_", 0) == 0;
+                        bool hasBlackPrefix = name.rfind("black_", 0) == 0;
+                        if (looksBlack && hasWhitePrefix) continue;
+                        if (looksWhite && hasBlackPrefix) continue;
+
+                        double score = CompareEdges(cellEdges, ref);
+                        if (score < bestScore) {
+                            bestScore = score;
+                            if (name.find(looksBlack ? '_p' : '_P') != std::string::npos) bestLetter = looksBlack ? 'p' : 'P';
+                            else if (name.find(looksBlack ? '_n' : '_N') != std::string::npos) bestLetter = looksBlack ? 'n' : 'N';
+                            else if (name.find(looksBlack ? '_b' : '_B') != std::string::npos) bestLetter = looksBlack ? 'b' : 'B';
+                            else if (name.find(looksBlack ? '_r' : '_R') != std::string::npos) bestLetter = looksBlack ? 'r' : 'R';
+                            else if (name.find(looksBlack ? '_q' : '_Q') != std::string::npos) bestLetter = looksBlack ? 'q' : 'Q';
+                            else if (name.find(looksBlack ? '_k' : '_K') != std::string::npos) bestLetter = looksBlack ? 'k' : 'K';
+                        }
+                    }
+
+                    double maxPossible = 255.0 * roi.width * roi.height;
+                    double similarity = 1.0 - std::min(bestScore / maxPossible, 1.0);
+                    if (similarity >= 0.90) {
+                        g_detectedLetters[idx] = bestLetter;
+                    }
+
                 }
             }
 
-            if (emptyCount > 0) fen += std::to_string(emptyCount);
-            if (row < 7) fen += '/';
+            for (int r = 0; r < 8; ++r) {
+                for (int c = 0; c < 8; ++c) {
+                    g_boardGridRows[r][c] = g_detectedLetters[r * 8 + c];
+                }
+            }
+
+            std::cout << "Frame processed.\n";
+
+            Sleep(10);
         }
 
-        std::cout << "[FEN] " << fen << std::endl;
-        std::cout << "[STATS] Pieces detected: Black = " << globalBlackCount << ", White = " << globalWhiteCount << ", Empty = " << globalEmptyCount << std::endl;
-
-        // Send update message to overlay
-        PostMessage(hwndOverlay, WM_CHESSBOARD_DETECTED, NULL, NULL);
-
-        Sleep(1000); // Analyze every second
+        Sleep(10);
     }
 
-    std::cout << "[INFO] ChessboardDetectionThread stopped" << std::endl;
     return 0;
 }
 

@@ -249,18 +249,19 @@ void UpdateCropRects() {
 }
 
 void SaveEdge(const cv::Mat& gray, const cv::Rect& roi, const std::string& path) {
-	std::cout << "Saving edge to " << path << std::endl;
-
     cv::Rect bounded = roi & cv::Rect(0, 0, gray.cols, gray.rows);
     if (bounded.width <= 0 || bounded.height <= 0) return;
     cv::Mat crop = gray(bounded).clone();
     cv::Mat edges;
     cv::Canny(crop, edges, 50, 150);
-    cv::imwrite(path, edges);
+    cv::imwrite((g_tempDir / path).string(), edges);
 }
 
 void GenerateReferencePieceCrops(const cv::Mat& gray, int cellWidth, int cellHeight) {
-    std::filesystem::create_directories("temp");
+    if (std::filesystem::exists(g_tempDir)) {
+        std::filesystem::remove_all(g_tempDir);
+    }
+    std::filesystem::create_directories(g_tempDir);
 
     auto rectFor = [&](int row, int col) -> cv::Rect {
         int centerX = g_boardRect.left + (col * cellWidth) + (cellWidth / 2);
@@ -276,20 +277,23 @@ void GenerateReferencePieceCrops(const cv::Mat& gray, int cellWidth, int cellHei
 
     for (int col = 0; col < 5; ++col) {
         g_orientation == 0 
-            ? SaveEdge(gray, rectFor(0, col), std::string("temp/black_piece_") + (char)pieceNamesBlack[col] + ".png")
-			: SaveEdge(gray, rectFor(0, col), std::string("temp/white_piece_") + (char)pieceNamesWhite[col] + ".png");
+            ? SaveEdge(gray, rectFor(0, col), std::string("black_") + (char)pieceNamesBlack[col] + ".png")
+			: SaveEdge(gray, rectFor(0, col), std::string("white_") + (char)pieceNamesWhite[col] + ".png");
     }
     g_orientation == 0
-        ? SaveEdge(gray, rectFor(1, 0), "temp/black_piece_p.png")
-        : SaveEdge(gray, rectFor(1, 0), "temp/piece_P.png");
+        ? SaveEdge(gray, rectFor(1, 0), "black_p.png")
+        : SaveEdge(gray, rectFor(1, 0), "white_P.png");
     
     for (int col = 0; col < 5; ++col) {
         g_orientation == 0
-            ? SaveEdge(gray, rectFor(7, col), std::string("temp/white_piece_") + (char)pieceNamesWhite[col] + ".png")
-            : SaveEdge(gray, rectFor(7, col), std::string("temp/black_piece_") + (char)pieceNamesBlack[col] + ".png");
+            ? SaveEdge(gray, rectFor(7, col), std::string("white_") + (char)pieceNamesWhite[col] + ".png")
+            : SaveEdge(gray, rectFor(7, col), std::string("black_") + (char)pieceNamesBlack[col] + ".png");
     }
     g_orientation == 0
-        ? SaveEdge(gray, rectFor(6, 0), "temp/white_piece_P.png")
-        : SaveEdge(gray, rectFor(6, 0), "temp/black_piece_p.png");
+        ? SaveEdge(gray, rectFor(6, 0), "white_P.png")
+        : SaveEdge(gray, rectFor(6, 0), "black_p.png");
+
+	// Give time for files to flush.
+    Sleep(300);
 }
 

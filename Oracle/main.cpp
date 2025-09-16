@@ -82,6 +82,22 @@ void RenderFrame() {
         }
     }
 
+    // Draw detected piece letters over each occupied cell during analysis.
+    if (g_hasAnalysisStarted) {
+        int cellWidth = (g_boardRect.right - g_boardRect.left) / 8;
+        int cellHeight = (g_boardRect.bottom - g_boardRect.top) / 8;
+        for (int row = 0; row < 8; ++row) {
+            for (int col = 0; col < 8; ++col) {
+                char letter = g_detectedLetters[row * 8 + col];
+                if (letter == ' ') continue;
+                int cx = g_boardRect.left + (col * cellWidth) + (cellWidth / 8);
+                int cy = g_boardRect.top + (row * cellHeight) + (cellWidth / 8);
+                ImVec2 pos((float)cx, (float)cy);
+                ImGui::GetForegroundDrawList()->AddText(pos, IM_COL32(139, 0, 139, 255), std::string(1, letter).c_str());
+            }
+        }
+    }
+
 	// Showing the ImGui menu.
     if (IMGUI_MENU_VISIBLE) {
         ShowMenu(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
@@ -115,8 +131,7 @@ int main() {
     // Initializing ImGui.
     InitializeImGui(hwndOverlay, g_pd3dDevice, g_pd3dDeviceContext);
 
-    // Create ChessboardDetectionThread.
-    CreateThread(NULL, 0, ChessboardDetectionThread, hwndOverlay, 0, NULL);
+    bool analysisNotStarted = true;
 
     MSG msg = {};
     while (true) {
@@ -138,6 +153,11 @@ int main() {
             DispatchMessage(&msg);
             if (msg.message == WM_QUIT)
                 return 0;
+        }
+
+        if (g_hasAnalysisStarted && analysisNotStarted) {
+            CreateThread(NULL, 0, ChessboardDetectionThread, hwndOverlay, 0, NULL);
+			analysisNotStarted = false;
         }
         
         // New frame.

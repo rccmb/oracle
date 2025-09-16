@@ -10,8 +10,6 @@
 #include "Globals.h"
 #include "Structs.h"
 
-#define WM_CHESSBOARD_DETECTED (WM_USER + 1)
-
 /**
  * @brief Window procedure to handle messages for the overlay window.
  *

@@ -1046,3 +1046,4 @@ dkms.conf
 
 OpenCV/
 x64/
+temp/
