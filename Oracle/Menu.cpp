@@ -188,9 +188,18 @@ void ShowMenu(int imageWidth, int imageHeight) {
     ImGui::Text("Analysis Settings");
     ImGui::SliderInt("Tolerance", &g_analysisTolerance, 1, 64);
     ImGui::Separator();
-    ImGui::Text("Detected Board (FEN grid)");
+    ImGui::Text("Real-Time Board");
     for (int r = 0; r < 8; ++r) {
-        ImGui::Text("%s", g_boardGridRows[r].c_str());
+        const std::string& row = g_boardGridRows[r];
+        std::string rowUtf8;
+        rowUtf8.reserve(row.size() * 4);
+
+        for (char ch : row) {
+            rowUtf8 += PieceToUnicode(ch);
+            rowUtf8 += ' ';
+        }
+
+        ImGui::Text("%s", rowUtf8.c_str());
     }
 
     ImGui::End();
@@ -200,9 +209,13 @@ void InitializeImGui(HWND hwndOverlay, ID3D11Device* device, ID3D11DeviceContext
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImFontConfig config;
+    config.MergeMode = false;
+    config.PixelSnapH = true;
     ImGui_ImplWin32_Init(hwndOverlay);
     ImGui_ImplDX11_Init(device, deviceContext);
     ImGui::StyleColorsDark();
+    io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/seguisym.ttf", 20.0f, &config, io.Fonts->GetGlyphRangesDefault());
 }
 
 void CleanupImGui() {

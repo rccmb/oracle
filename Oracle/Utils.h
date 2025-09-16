@@ -31,3 +31,6 @@ cv::Mat HWND2MAT(HWND hwnd);
  * @return cv::Mat An OpenCV matrix containing the window's client area pixel data in grayscale.
  */
 cv::Mat CropHWND2MAT(HWND hwnd, int x, int y, int width, int height);
+
+// TODO: Documentation.
+std::string PieceToUnicode(char piece);

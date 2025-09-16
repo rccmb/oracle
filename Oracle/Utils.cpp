@@ -1,4 +1,4 @@
-#include "Utils.h"
+﻿#include "Utils.h"
 
 cv::Mat HWND2MAT(HWND hwnd) {
     HDC hwindowDC = GetDC(hwnd);
@@ -49,4 +49,24 @@ cv::Mat CropHWND2MAT(HWND hwnd, int x, int y, int width, int height) {
 
     cv::Rect roi(x, y, width, height);
     return full(roi).clone();
+}
+
+std::string PieceToUnicode(char piece) {
+    switch (piece) {
+        case 'K': return u8"\u2654"; // ♔
+        case 'Q': return u8"\u2655"; // ♕
+        case 'R': return u8"\u2656"; // ♖
+        case 'B': return u8"\u2657"; // ♗
+        case 'N': return u8"\u2658"; // ♘
+        case 'P': return u8"\u2659"; // ♙
+
+        case 'k': return u8"\u265A"; // ♚
+        case 'q': return u8"\u265B"; // ♛
+        case 'r': return u8"\u265C"; // ♜
+        case 'b': return u8"\u265D"; // ♝
+        case 'n': return u8"\u265E"; // ♞
+        case 'p': return u8"\u265F"; // ♟
+
+        default: return " ";
+    }
 }
