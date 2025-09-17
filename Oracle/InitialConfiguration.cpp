@@ -94,9 +94,6 @@ std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, const cv::Rect& 
     const int patchSize = 1;
     const int stride = 2;
 
-    std::cout << "Clicks are at (" << g_clicks.first.x << ", " << g_clicks.first.y << ") and ("
-		<< g_clicks.second.x << ", " << g_clicks.second.y << ") with grayscaleValue " << (int)g_clicks.first.grayscaleValue << " and " << (int)g_clicks.second.grayscaleValue << std::endl;
-
     uchar colorA = g_clicks.first.grayscaleValue;
     uchar colorB = g_clicks.second.grayscaleValue;
     const int colorThreshold = 5; // Acceptable difference for color match.
@@ -157,7 +154,6 @@ std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, const cv::Rect& 
 
     // Check if we found enough junctions to form a chessboard.
     if (junctions.size() < 4) {
-        std::cout << "[ERROR] Not enough chessboard junctions found (" << junctions.size() << " found, need at least 4)" << std::endl;
         return std::nullopt;
     }
 
@@ -188,7 +184,6 @@ std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, const cv::Rect& 
     board_y = std::clamp(board_y, 0, gray.rows - board_h);
 
     cv::Rect g_boardRect(board_x, board_y, board_w, board_h);
-    std::cout << "[INFO] Detected board at (" << g_boardRect.x << ", " << g_boardRect.y << ") size (" << g_boardRect.width << "x" << g_boardRect.height << ")\n";
     return g_boardRect;
 }
 

@@ -24,10 +24,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
                 g_clickStage = 0;
                 g_viewFirstClick = { -1, -1, 0 };
                 g_viewSecondClick = { -1, -1, 0 };
-                std::cout << "[INFO] Screenshot captured for click sampling (" << g_userScreenshotGray.cols << "x" << g_userScreenshotGray.rows << ")" << std::endl;
-            } else {
-                std::cout << "[ERROR] Failed to capture screenshot." << std::endl;
-            }
+            } 
         }
         ImGui::Separator();
     }
@@ -93,7 +90,6 @@ void ShowMenu(int imageWidth, int imageHeight) {
         g_refBoardColor1 = -1;
         g_refBoardColor2 = -1;
         g_noBoard = true;
-        std::cout << "[INFO] Board rescan requested - please click two points to define the chessboard" << std::endl;
     }
     
     /* CURRENT MODE. */
@@ -170,7 +166,6 @@ void ShowMenu(int imageWidth, int imageHeight) {
         cv::Mat src = g_userScreenshotReady && !g_userScreenshotGray.empty() ? g_userScreenshotGray : HWND2MAT(GetDesktopWindow());
         GenerateReferencePieceCrops(src, cellW, cellH);
         g_hasAnalysisStarted = true;
-        std::cout << "[INFO] Reference crops generated to temp/ and analysis started" << std::endl;
     }
     ImGui::EndDisabled();
 

@@ -81,7 +81,6 @@ std::string BoardToFEN() {
 }
 
 DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
-	std::cout << "[INFO] Chessboard detection thread started.\n";
     HWND hwndOverlay = (HWND)param;
     HWND hwndDesktop = GetDesktopWindow();
     
@@ -229,7 +228,6 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
             }
 
             if (changed) {
-                std::cout << "Change detected.\n";
                 g_prevLetterDrawQueue = g_detectedLetters;
 
                 // Build grid rows from detected letters.
