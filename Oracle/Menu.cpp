@@ -1,19 +1,20 @@
 #include "Menu.h"
 
+ImFont* CHESSBOARD_FONT;
+ImFont* DEFAULT_FONT;
+
 void ShowMenu(int imageWidth, int imageHeight) {
     static bool show_window = true;
 
     ImGui::SetNextWindowPos(ImVec2(100, 100), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(400, 0), ImGuiCond_FirstUseEver);
 
-    if (!ImGui::Begin("Chess Analysis Controls", &show_window, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize)) {
+    if (!ImGui::Begin("oracle.pro", &show_window, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize)) {
         ImGui::End();
         return;
     }
 
-    ImGui::Text("Board Detection");
-    ImGui::Separator();
-
+    /* SET USER SCREENSHOT. */
     if (!g_userScreenshotReady) {
         ImGui::TextColored(ImVec4(1, 0.5f, 0, 1), "You must take a screenshot before setting clicks.");
         if (ImGui::Button("Take Screenshot")) {
@@ -31,6 +32,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
         ImGui::Separator();
     }
 
+    /* SET USER CLICKS. */
     if (!g_boardClicksReady && g_userScreenshotReady) {
         ImGui::Text("Click on the board using Ctrl+LMB to set corners:");
         if (g_clickStage == 0) {
@@ -62,6 +64,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
         ImGui::Separator();
     }
     
+    /* CONFIGURATION RESET. */
     if (ImGui::Button("Rescan Board")) {
         g_hasAnalysisStarted = false;
         g_isConfiguringSamplePoints = true;
@@ -89,15 +92,12 @@ void ShowMenu(int imageWidth, int imageHeight) {
         g_refWhitePiece = -1;
         g_refBoardColor1 = -1;
         g_refBoardColor2 = -1;
+        g_noBoard = true;
         std::cout << "[INFO] Board rescan requested - please click two points to define the chessboard" << std::endl;
     }
     
+    /* CURRENT MODE. */
     ImGui::Separator();
-    
-    // Sample Point Configuration Section
-    ImGui::Text("Sample Point Configuration");
-    ImGui::Separator();
-    
     if (g_isConfiguringSamplePoints || g_isConfiguringCropRegion) {
         ImGui::TextColored(ImVec4(0, 1, 0, 1), "Configuration Mode: ACTIVE");
         ImGui::Text("Sample Points: %d", (int)g_debugSamples.size());
@@ -108,22 +108,20 @@ void ShowMenu(int imageWidth, int imageHeight) {
             g_isConfiguringSamplePoints = true;
             g_hasAnalysisStarted = false;
             g_debugSamples.clear();
-            // Update debug samples with current configuration. 
             UpdateDebugSamples();
         }
     }
 
+    /* SAMPLE POINT SETTINGS. */
+    ImGui::BeginDisabled(g_samplePointsSet || g_userScreenshotGray.empty() || !g_boardClicksReady);
     ImGui::Separator();
     ImGui::Text("Sample Point Parameters");
-
     ImGui::Text("Adjust the sliders below to position sample points.");
     
-    // Track if sliders changed.
     static int prevPatchSize = g_debugPatchSize;
     static int prevOffsetX = g_debugOffsetX;
     static int prevOffsetY = g_debugOffsetY;
-    
-    ImGui::BeginDisabled(g_samplePointsSet || g_userScreenshotGray.empty() || !g_boardClicksReady);
+
     ImGui::SliderInt("Patch Size", &g_debugPatchSize, 1, 64);
     ImGui::SliderInt("X Offset", &g_debugOffsetX, -64, 64);
     ImGui::SliderInt("Y Offset", &g_debugOffsetY, -64, 64);
@@ -134,9 +132,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
         g_isConfiguringCropRegion = true;
         UpdateCropRects();
     }
-    ImGui::EndDisabled();
-
-    // Update debug samples if sliders changed.
+    
     if (!g_samplePointsSet && (prevPatchSize != g_debugPatchSize || prevOffsetX != g_debugOffsetX || prevOffsetY != g_debugOffsetY)) {
         UpdateDebugSamples();
         prevPatchSize = g_debugPatchSize;
@@ -144,7 +140,9 @@ void ShowMenu(int imageWidth, int imageHeight) {
         prevOffsetY = g_debugOffsetY;
     }
 
-    // Track if sliders changed.
+    ImGui::EndDisabled();
+
+    /* CROP REGION SETTINGS. */
     static int prevCropPatch = g_cropPatchSize;
     static int prevCropOffX = g_cropOffsetX;
     static int prevCropOffY = g_cropOffsetY;
@@ -156,7 +154,6 @@ void ShowMenu(int imageWidth, int imageHeight) {
     ImGui::SliderInt("Crop X Offset", &g_cropOffsetX, -64, 64);
     ImGui::SliderInt("Crop Y Offset", &g_cropOffsetY, -64, 64);
 
-    // Update crop rects if sliders changed.
     if (!g_cropRegionSet && g_isConfiguringCropRegion && (prevCropPatch != g_cropPatchSize || prevCropOffX != g_cropOffsetX || prevCropOffY != g_cropOffsetY)) {
         UpdateCropRects();
         prevCropPatch = g_cropPatchSize;
@@ -178,28 +175,82 @@ void ShowMenu(int imageWidth, int imageHeight) {
     ImGui::EndDisabled();
 
     ImGui::Separator();
+    ImGui::Text("Analysis Settings");
+    ImGui::SliderInt("Tolerance", &g_analysisTolerance, 1, 64);
+
+    ImGui::Separator();
     ImGui::Text("Reference Values");
     ImGui::Text("Black Piece Intensity: %d", g_refBlackPiece);
     ImGui::Text("White Piece Intensity: %d", g_refWhitePiece);
     ImGui::Text("Board Color 1: %d", g_refBoardColor1);
     ImGui::Text("Board Color 2: %d", g_refBoardColor2);
+    
+    if (!g_noBoard) {
+        ImGui::PushFont(CHESSBOARD_FONT);
+        const float boardSize = (g_boardRect.right - g_boardRect.left) / 2.0f;
 
-    ImGui::Separator();
-    ImGui::Text("Analysis Settings");
-    ImGui::SliderInt("Tolerance", &g_analysisTolerance, 1, 64);
-    ImGui::Separator();
-    ImGui::Text("Real-Time Board");
-    for (int r = 0; r < 8; ++r) {
-        const std::string& row = g_boardGridRows[r];
-        std::string rowUtf8;
-        rowUtf8.reserve(row.size() * 4);
+        // Window size
+        const float windowPaddingY = ImGui::GetStyle().WindowPadding.y * 2.0f;
+        const float headerHeight = ImGui::GetTextLineHeightWithSpacing() * 2.0f;
+        const float windowSizeY = boardSize + windowPaddingY + headerHeight;
 
-        for (char ch : row) {
-            rowUtf8 += PieceToUnicode(ch);
-            rowUtf8 += ' ';
+        const float windowPaddingX = ImGui::GetStyle().WindowPadding.x * 2.0f;
+        const float windowSizeX = boardSize + windowPaddingX;
+
+        ImGui::SetNextWindowSize(ImVec2(windowSizeX, windowSizeY), ImGuiCond_Always);
+
+        ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize;
+
+        ImU32 darkSquare = IM_COL32(5, 5, 5, 255);
+        ImU32 lightSquare = IM_COL32(25, 20, 20, 255);
+
+        if (ImGui::Begin("Real-Time Analysis", nullptr, windowFlags)) {
+            ImGui::Text("Real-Time Board");
+
+            ImGuiTableFlags tableFlags = ImGuiTableFlags_Borders
+                | ImGuiTableFlags_SizingStretchSame;
+
+            if (ImGui::BeginTable("ChessBoard", 8, tableFlags,
+                ImVec2(boardSize, boardSize))) {
+
+                // Stretch all 8 columns equally
+                for (int col = 0; col < 8; col++) {
+                    ImGui::TableSetupColumn(nullptr, ImGuiTableColumnFlags_WidthStretch);
+                }
+
+                const float cellSize = boardSize / 8.0f;
+
+                for (int row = 0; row < 8; row++) {
+                    ImGui::TableNextRow(0, cellSize);
+                    for (int col = 0; col < 8; col++) {
+                        ImGui::TableSetColumnIndex(col);
+
+                        ImU32 bgColor = ((row + col) % 2 == 0) ? lightSquare : darkSquare;
+                        ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, bgColor);
+
+                        ImVec2 cellMin = ImGui::GetCursorScreenPos();
+
+                        char piece = g_boardGridRows[row][col];
+                        std::string symbol = PieceToUnicode(piece);
+
+                        ImVec2 textSize = ImGui::CalcTextSize(symbol.c_str());
+
+                        ImVec2 textPos = {
+                            (cellMin.x + cellSize * 0.5f) - (textSize.x * 0.65f),
+                            (cellMin.y + cellSize * 0.5f) - (textSize.y * 0.65f)
+                        };
+
+                        ImGui::GetWindowDrawList()->AddText(
+                            textPos, ImGui::GetColorU32(ImGuiCol_Text), symbol.c_str()
+                        );
+                    }
+                }
+
+                ImGui::EndTable();
+            }
         }
-
-        ImGui::Text("%s", rowUtf8.c_str());
+        ImGui::PopFont();
+        ImGui::End();
     }
 
     ImGui::End();
@@ -209,13 +260,13 @@ void InitializeImGui(HWND hwndOverlay, ID3D11Device* device, ID3D11DeviceContext
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
-    ImFontConfig config;
-    config.MergeMode = false;
-    config.PixelSnapH = true;
     ImGui_ImplWin32_Init(hwndOverlay);
     ImGui_ImplDX11_Init(device, deviceContext);
     ImGui::StyleColorsDark();
-    io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/seguisym.ttf", 20.0f, &config, io.Fonts->GetGlyphRangesDefault());
+
+    DEFAULT_FONT = io.Fonts->AddFontDefault();
+    CHESSBOARD_FONT = io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/seguisym.ttf", 20.0f);
+    io.FontDefault = DEFAULT_FONT;
 }
 
 void CleanupImGui() {

@@ -62,3 +62,5 @@ extern std::vector<char> g_prevLetterDrawQueue;
 
 extern bool g_boardChanged;
 extern std::mutex g_boardChangedMutex;
+
+extern bool g_noBoard;

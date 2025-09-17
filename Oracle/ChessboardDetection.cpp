@@ -185,6 +185,7 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                 }
 
                 g_boardGridRows = std::move(newRows);
+                g_noBoard = false;
             }
         }
 

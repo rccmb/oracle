@@ -50,3 +50,5 @@ std::vector<char> g_prevLetterDrawQueue;
 
 bool g_boardChanged;
 std::mutex g_boardChangedMutex;
+
+bool g_noBoard = true;
