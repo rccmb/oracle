@@ -21,6 +21,65 @@ double CompareEdges(const cv::Mat& a, const cv::Mat& b) {
     return cv::sum(diff)[0];
 }
 
+std::string BoardToFEN() {
+    std::ostringstream fen;
+
+    if (g_boardGridRows.size() != 8) {
+        return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    }
+
+    bool hasWhiteKing = false;
+    bool hasBlackKing = false;
+
+    // Determine row iteration based on orientation.
+    int start = (g_orientation == 0) ? 0 : 7;
+    int end = (g_orientation == 0) ? 8 : -1;
+    int step = (g_orientation == 0) ? 1 : -1;
+
+    for (int row = start; row != end; row += step) {
+        int emptyCount = 0;
+        for (int col = 0; col < 8; ++col) {
+            char piece = g_boardGridRows[row][col];
+            if (piece == ' ' || piece == '\0') {
+                emptyCount++;
+            }
+            else {
+                if (emptyCount > 0) {
+                    fen << emptyCount;
+                    emptyCount = 0;
+                }
+                fen << piece;
+
+                if (piece == 'K') hasWhiteKing = true;
+                if (piece == 'k') hasBlackKing = true;
+            }
+        }
+        if (emptyCount > 0) fen << emptyCount;
+        if (row != (step > 0 ? end - 1 : end + 1)) fen << '/';
+    }
+
+    if (!hasWhiteKing || !hasBlackKing) {
+        return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    }
+
+    fen << ' ' << (g_sfPlayWhite ? 'w' : 'b');
+
+    fen << " KQkq";
+
+    fen << " -";
+
+    fen << " 0 1";
+
+    std::string result = fen.str();
+
+    int slashCount = (int)std::count(result.begin(), result.end(), '/');
+    if (slashCount != 7) {
+        return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    }
+
+    return result;
+}
+
 DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
 	std::cout << "[INFO] Chessboard detection thread started.\n";
     HWND hwndOverlay = (HWND)param;
@@ -43,7 +102,7 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
     std::vector<RefChamferData> refChamfers;
     refChamfers.reserve(refs.size());
 
-    const int chamferDilate = 1; // tolerance for tiny shifts
+    const int chamferDilate = 1;
     cv::Mat dilateKernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(chamferDilate * 2 + 1, chamferDilate * 2 + 1));
 
     for (const auto& kv : refs) {

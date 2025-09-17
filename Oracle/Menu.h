@@ -12,6 +12,7 @@
 #include "Structs.h"
 #include "Overlay.h"
 #include "InitialConfiguration.h"
+#include "StockfishHandler.h"
 
 #include "imgui.h"
 #include "imgui_impl_win32.h"

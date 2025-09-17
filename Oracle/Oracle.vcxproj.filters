@@ -81,6 +81,9 @@
     <ClCompile Include="FileHandler.cpp">
       <Filter>Source Files\Helpers</Filter>
     </ClCompile>
+    <ClCompile Include="StockfishHandler.cpp">
+      <Filter>Source Files\Helpers</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Overlay.h">
@@ -132,6 +135,9 @@
       <Filter>Source Files\Models</Filter>
     </ClInclude>
     <ClInclude Include="FileHandler.h">
+      <Filter>Source Files\Helpers</Filter>
+    </ClInclude>
+    <ClInclude Include="StockfishHandler.h">
       <Filter>Source Files\Helpers</Filter>
     </ClInclude>
   </ItemGroup>

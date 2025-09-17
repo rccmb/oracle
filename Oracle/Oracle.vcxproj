@@ -144,6 +144,7 @@
     <ClCompile Include="ImGui\imgui_widgets.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Overlay.cpp" />
+    <ClCompile Include="StockfishHandler.cpp" />
     <ClCompile Include="Utils.cpp" />
     <ClCompile Include="ChessboardDetection.cpp" />
   </ItemGroup>
@@ -162,6 +163,7 @@
     <ClInclude Include="ImGui\imstb_textedit.h" />
     <ClInclude Include="ImGui\imstb_truetype.h" />
     <ClInclude Include="Overlay.h" />
+    <ClInclude Include="StockfishHandler.h" />
     <ClInclude Include="Structs.h" />
     <ClInclude Include="Utils.h" />
     <ClInclude Include="ChessboardDetection.h" />

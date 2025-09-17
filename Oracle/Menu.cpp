@@ -186,10 +186,9 @@ void ShowMenu(int imageWidth, int imageHeight) {
     ImGui::Text("Board Color 2: %d", g_refBoardColor2);
     
     if (!g_noBoard) {
-        ImGui::PushFont(CHESSBOARD_FONT);
+        /* LIVE-BOARD PREVIEW. */
         const float boardSize = (g_boardRect.right - g_boardRect.left) / 2.0f;
 
-        // Window size
         const float windowPaddingY = ImGui::GetStyle().WindowPadding.y * 2.0f;
         const float headerHeight = ImGui::GetTextLineHeightWithSpacing() * 2.0f;
         const float windowSizeY = boardSize + windowPaddingY + headerHeight;
@@ -197,7 +196,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
         const float windowPaddingX = ImGui::GetStyle().WindowPadding.x * 2.0f;
         const float windowSizeX = boardSize + windowPaddingX;
 
-        ImGui::SetNextWindowSize(ImVec2(windowSizeX, windowSizeY), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(windowSizeX, 0), ImGuiCond_Always);
 
         ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize;
 
@@ -205,6 +204,37 @@ void ShowMenu(int imageWidth, int imageHeight) {
         ImU32 lightSquare = IM_COL32(25, 20, 20, 255);
 
         if (ImGui::Begin("Real-Time Analysis", nullptr, windowFlags)) {
+            /* STOCKFISH RELATED. */
+            bool stockfishAlive = StockfishIsAlive();
+
+            ImVec4 colAlive = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
+            ImVec4 colDead = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
+
+            
+            ImGui::Text("Stockfish is: ");
+            ImGui::SameLine();
+            if (stockfishAlive) {
+                ImGui::TextColored(colAlive, "Alive");
+            }
+            else {
+                ImGui::TextColored(colDead, "Dead");
+            }
+
+            ImGui::SliderInt("Engine ELO", &g_sfElo, 100, 4000);
+            ImGui::SliderInt("Engine Move Depth", &g_sfMoveDepth, 1, 30);
+            ImGui::SliderInt("Number of Moves", &g_sfNumberMoves, 1, 10);
+
+            ImGui::Text("Play As:");
+
+            if (ImGui::RadioButton("Play as White", g_sfPlayWhite == 1)) {
+                g_sfPlayWhite = 1;
+            }
+            ImGui::SameLine();
+            if (ImGui::RadioButton("Play as Black", g_sfPlayWhite == 0)) {
+                g_sfPlayWhite = 0;
+            }
+
+            ImGui::Separator();
             ImGui::Text("Real-Time Board");
 
             ImGuiTableFlags tableFlags = ImGuiTableFlags_Borders
@@ -212,8 +242,9 @@ void ShowMenu(int imageWidth, int imageHeight) {
 
             if (ImGui::BeginTable("ChessBoard", 8, tableFlags,
                 ImVec2(boardSize, boardSize))) {
+                ImGui::PushFont(CHESSBOARD_FONT);
 
-                // Stretch all 8 columns equally
+                // Stretch all 8 columns equally.
                 for (int col = 0; col < 8; col++) {
                     ImGui::TableSetupColumn(nullptr, ImGuiTableColumnFlags_WidthStretch);
                 }
@@ -247,9 +278,34 @@ void ShowMenu(int imageWidth, int imageHeight) {
                 }
 
                 ImGui::EndTable();
+                ImGui::PopFont();
+            }
+
+            /* STOCKFISH REAL-TIME MOVES. */
+            if (stockfishAlive) {
+                std::string fen = BoardToFEN();
+                static std::string prevFen;
+                static std::vector<StockfishMove> prevMoves;
+
+                if (fen != prevFen) {
+                    prevMoves = GetBestMoves(fen, g_sfPlayWhite, g_sfElo, g_sfNumberMoves, g_sfMoveDepth);
+                    prevFen = fen;
+                }
+
+                ImGui::Separator();
+                ImGui::Text("Top 5 Moves:");
+
+                for (size_t i = 0; i < prevMoves.size(); ++i) {
+                    const auto& mv = prevMoves[i];
+                    if (mv.mate) {
+                        ImGui::Text("%d. %s (mate in %d)", (int)i + 1, mv.uci.c_str(), mv.mateIn);
+                    }
+                    else {
+                        ImGui::Text("%d. %s (score %d cp)", (int)i + 1, mv.uci.c_str(), mv.scoreCp);
+                    }
+                }
             }
         }
-        ImGui::PopFont();
         ImGui::End();
     }
 

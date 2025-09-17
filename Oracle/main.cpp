@@ -12,6 +12,7 @@
 #include "ChessboardDetection.h"
 #include "Direct3D.h"
 #include "Menu.h"
+#include "StockfishHandler.h"
 #include "imgui.h"
 
 static bool IMGUI_MENU_VISIBLE = false;
@@ -130,6 +131,9 @@ int main() {
 
     // Initializing ImGui.
     InitializeImGui(hwndOverlay, g_pd3dDevice, g_pd3dDeviceContext);
+
+    // Initializing Stockfish.
+    LaunchStockfish("stockfish/stockfish.exe");
 
     bool analysisNotStarted = true;
 

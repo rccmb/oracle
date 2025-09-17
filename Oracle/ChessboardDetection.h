@@ -20,6 +20,7 @@
 #include "Structs.h"
 #include "Globals.h"
 #include "InitialConfiguration.h"
+#include "StockfishHandler.h"
 #include "FileHandler.h"
 
 // TODO: Documentation.
@@ -27,6 +28,9 @@ double SampleCellCenter(const cv::Mat& gray, int x, int y);
 
 // TODO: Documentation.
 double CompareEdges(const cv::Mat& a, const cv::Mat& b);
+
+// TODO: Documentation.
+std::string BoardToFEN();
 
 // TODO: Documentation.
 DWORD WINAPI ChessboardDetectionThread(LPVOID param);
