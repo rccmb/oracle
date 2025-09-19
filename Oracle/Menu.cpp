@@ -109,6 +109,10 @@ void ShowMenu(int imageWidth, int imageHeight) {
     }
 
     /* SAMPLE POINT SETTINGS. */
+    // TODO: Implement debug sample grouping, for example: In lichess, one debug sample is not enough to get all of the pieces. 
+    // Certain pieces have different colors in certain positions.
+    // By using more than one debug sample groups, if tghe spot at the debug sample does not equal nor white nor black reference values:
+    // - We move to the next debug sample for that cell, doing so until we either find a match for black or white reference values.
     ImGui::BeginDisabled(g_samplePointsSet || g_userScreenshotGray.empty() || !g_boardClicksReady);
     ImGui::Separator();
     ImGui::Text("Sample Point Parameters");
@@ -205,14 +209,13 @@ void ShowMenu(int imageWidth, int imageHeight) {
             ImVec4 colAlive = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
             ImVec4 colDead = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
 
-            
             ImGui::Text("Stockfish is: ");
             ImGui::SameLine();
             if (stockfishAlive) {
-                ImGui::TextColored(colAlive, "Alive");
+                ImGui::TextColored(colAlive, "ALIVE");
             }
             else {
-                ImGui::TextColored(colDead, "Dead");
+                ImGui::TextColored(colDead, "DEAD");
             }
 
             ImGui::SliderInt("Engine ELO", &g_sfElo, 100, 4000);
@@ -256,7 +259,11 @@ void ShowMenu(int imageWidth, int imageHeight) {
 
                         ImVec2 cellMin = ImGui::GetCursorScreenPos();
 
-                        char piece = g_boardGridRows[row][col];
+                        char piece = ' ';
+                        if (row < (int)g_boardGridRows.size() && col < (int)g_boardGridRows[row].size()) {
+                            piece = g_boardGridRows[row][col];
+                        }
+
                         std::string symbol = PieceToUnicode(piece);
 
                         ImVec2 textSize = ImGui::CalcTextSize(symbol.c_str());
@@ -277,6 +284,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
             }
 
             /* STOCKFISH REAL-TIME MOVES. */
+            // TODO: The user may want to change Stockfish settings mid move, if so, it should re-render.
             if (stockfishAlive) {
                 std::string fen = BoardToFEN();
                 static std::string prevFen;
@@ -288,7 +296,9 @@ void ShowMenu(int imageWidth, int imageHeight) {
                 }
 
                 ImGui::Separator();
-                ImGui::Text("Top 5 Moves:");
+                std::stringstream topMovesText;
+                topMovesText << "Top " << g_sfNumberMoves << " moves:" << std::endl;
+                ImGui::Text(topMovesText.str().c_str());
 
                 for (size_t i = 0; i < prevMoves.size(); ++i) {
                     const auto& mv = prevMoves[i];

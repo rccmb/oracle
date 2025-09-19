@@ -39,7 +39,11 @@ std::string BoardToFEN() {
     for (int row = start; row != end; row += step) {
         int emptyCount = 0;
         for (int col = 0; col < 8; ++col) {
-            char piece = g_boardGridRows[row][col];
+            char piece = ' ';
+            if (row < (int)g_boardGridRows.size() && col < (int)g_boardGridRows[row].size()) {
+                piece = g_boardGridRows[row][col];
+            }
+
             if (piece == ' ' || piece == '\0') {
                 emptyCount++;
             }
@@ -207,6 +211,7 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
 
                     const double chamferScale = 3.0;
                     double similarity = std::exp(-bestChamfer / chamferScale);
+                    // TODO: Make similarity editable with ImGui.
                     if (similarity >= 0.90) {
                         g_detectedLetters[idx] = bestLetter;
                     }
