@@ -39,6 +39,3 @@ std::vector<StockfishMove> GetBestMoves(const std::string& fen, int elo, int top
 
 // TODO: Documentation.
 void ShutdownStockfish();
-
-// TODO: Documentation.
-bool IsFENValidWithStockfish(const std::string& fen);

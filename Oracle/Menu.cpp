@@ -298,6 +298,9 @@ void ShowMenu(int imageWidth, int imageHeight) {
             }
 
             ImGui::Separator();
+            // TODO: Implement board evaluation.
+
+
             ImGui::Text("Real-Time Board");
 
             ImGuiTableFlags tableFlags = ImGuiTableFlags_Borders
@@ -357,6 +360,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
                 static std::vector<StockfishMove> prevMoves;
 
                 if (fen != prevFen) {
+					std::cout << "New FEN: " << fen << std::endl;
                     prevMoves = GetBestMoves(fen, g_sfElo, g_sfNumberMoves, g_sfMoveDepth);
                     prevFen = fen;
                 }

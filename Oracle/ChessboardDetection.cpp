@@ -76,12 +76,9 @@ std::string BoardToFEN() {
         return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     }
 
-    if (IsFENValidWithStockfish(result)) {
-        g_lastValidFEN = result;
-        return result;
-    }
-
-    return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+	// All validations passes, update last valid FEN.
+    g_lastValidFEN = result;
+    return result;
 }
 
 DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
@@ -248,6 +245,9 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                         continue;
 
                     // TODO: En passant detection. TWO PAWNS DISAPPEARED, ONE PAWN APPEARED.
+                    // TODO: Add support for when the user reverts the game. As in, if there is one more piece detected, we should do nothing, just keep scanning the board.
+                    // - We will have to keep the very last FEN, so that we know where to resume scanning the board for plays.
+                    // - Also verify the side switching problem, sometimes it's erroneous.
 
 					// Piece disappeared. Whoever was here, moved for this turn.
                     if (prevCh != ' ' && curCh == ' ') {
