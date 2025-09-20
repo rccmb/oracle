@@ -18,8 +18,9 @@ void ShowMenu(int imageWidth, int imageHeight) {
     if (!g_userScreenshotReady) {
         ImGui::TextColored(ImVec4(1, 0.5f, 0, 1), "You must take a screenshot before setting clicks.");
         if (ImGui::Button("Take Screenshot")) {
-            g_userScreenshotGray = HWND2MAT(GetDesktopWindow());
-            if (!g_userScreenshotGray.empty()) {
+            g_userScreenshotColor = HWND2MAT(GetDesktopWindow());
+            if (!g_userScreenshotColor.empty()) {
+                cv::cvtColor(g_userScreenshotColor, g_userScreenshotGray, cv::COLOR_BGR2GRAY);
                 g_userScreenshotReady = true;
                 g_clickStage = 0;
                 g_viewFirstClick = { -1, -1, 0 };
@@ -55,6 +56,17 @@ void ShowMenu(int imageWidth, int imageHeight) {
                 g_samplePointsSet = false;
                 g_refBoardColor1 = (int)g_clicks.first.grayscaleValue;
                 g_refBoardColor2 = (int)g_clicks.second.grayscaleValue;
+                
+                if (!g_userScreenshotColor.empty()) {
+                    if (g_viewFirstClick.y >= 0 && g_viewFirstClick.y < g_userScreenshotColor.rows &&
+                        g_viewFirstClick.x >= 0 && g_viewFirstClick.x < g_userScreenshotColor.cols) {
+                        g_refBoardColor1Color = g_userScreenshotColor.at<cv::Vec3b>(g_viewFirstClick.y, g_viewFirstClick.x);
+                    }
+                    if (g_viewSecondClick.y >= 0 && g_viewSecondClick.y < g_userScreenshotColor.rows &&
+                        g_viewSecondClick.x >= 0 && g_viewSecondClick.x < g_userScreenshotColor.cols) {
+                        g_refBoardColor2Color = g_userScreenshotColor.at<cv::Vec3b>(g_viewSecondClick.y, g_viewSecondClick.x);
+                    }
+                }
             }
             ImGui::Text("First: (%d, %d)  Second: (%d, %d)", g_viewFirstClick.x, g_viewFirstClick.y, g_viewSecondClick.x, g_viewSecondClick.y);
         }
@@ -167,8 +179,8 @@ void ShowMenu(int imageWidth, int imageHeight) {
         g_isConfiguringCropRegion = false;
         int cellW = (g_boardRect.right - g_boardRect.left) / 8;
         int cellH = (g_boardRect.bottom - g_boardRect.top) / 8;
-        cv::Mat src = g_userScreenshotReady && !g_userScreenshotGray.empty() ? g_userScreenshotGray : HWND2MAT(GetDesktopWindow());
-        GenerateReferencePieceCrops(src, cellW, cellH);
+        cv::Mat srcColor = g_userScreenshotReady && !g_userScreenshotColor.empty() ? g_userScreenshotColor : HWND2MAT(GetDesktopWindow());
+        GenerateReferencePieceCrops(srcColor, cellW, cellH);
         g_hasAnalysisStarted = true;
     }
     ImGui::EndDisabled();
@@ -177,12 +189,65 @@ void ShowMenu(int imageWidth, int imageHeight) {
     ImGui::Text("Analysis Settings");
     ImGui::SliderInt("Tolerance", &g_analysisTolerance, 1, 64);
 
+    ImGui::BeginDisabled(!g_samplePointsSet || !g_cropRegionSet);
     ImGui::Separator();
     ImGui::Text("Reference Values");
-    ImGui::Text("Black Piece Intensity: %d", g_refBlackPiece);
-    ImGui::Text("White Piece Intensity: %d", g_refWhitePiece);
-    ImGui::Text("Board Color 1: %d", g_refBoardColor1);
-    ImGui::Text("Board Color 2: %d", g_refBoardColor2);
+
+    if (ImGui::BeginTable("ref_table", 2, ImGuiTableFlags_BordersInnerV)) {
+        ImGui::TableSetupColumn("Grayscale", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("Color", ImGuiTableColumnFlags_WidthStretch);
+
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        ImGui::Text("Black Piece: %d", g_refBlackPiece);
+        ImGui::TableSetColumnIndex(1);
+        ImGui::ColorButton("##black_piece_color",
+            ImVec4(g_refBlackPieceColor[2] / 255.0f,
+                g_refBlackPieceColor[1] / 255.0f,
+                g_refBlackPieceColor[0] / 255.0f,
+                1.0f),
+            ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoPicker,
+            ImVec2(40, 20));
+
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        ImGui::Text("White Piece: %d", g_refWhitePiece);
+        ImGui::TableSetColumnIndex(1);
+        ImGui::ColorButton("##white_piece_color",
+            ImVec4(g_refWhitePieceColor[2] / 255.0f,
+                g_refWhitePieceColor[1] / 255.0f,
+                g_refWhitePieceColor[0] / 255.0f,
+                1.0f),
+            ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoPicker,
+            ImVec2(40, 20));
+
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        ImGui::Text("Board Color 1: %d", g_refBoardColor1);
+        ImGui::TableSetColumnIndex(1);
+        ImGui::ColorButton("##board_color1",
+            ImVec4(g_refBoardColor1Color[2] / 255.0f,
+                g_refBoardColor1Color[1] / 255.0f,
+                g_refBoardColor1Color[0] / 255.0f,
+                1.0f),
+            ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoPicker,
+            ImVec2(40, 20));
+
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        ImGui::Text("Board Color 2: %d", g_refBoardColor2);
+        ImGui::TableSetColumnIndex(1);
+        ImGui::ColorButton("##board_color2",
+            ImVec4(g_refBoardColor2Color[2] / 255.0f,
+                g_refBoardColor2Color[1] / 255.0f,
+                g_refBoardColor2Color[0] / 255.0f,
+                1.0f),
+            ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoPicker,
+            ImVec2(40, 20));
+
+        ImGui::EndTable();
+    }
+    ImGui::EndDisabled();
     
     if (!g_noBoard) {
         /* LIVE-BOARD PREVIEW. */
@@ -287,11 +352,12 @@ void ShowMenu(int imageWidth, int imageHeight) {
             // TODO: The user may want to change Stockfish settings mid move, if so, it should re-render.
             if (stockfishAlive) {
                 std::string fen = BoardToFEN();
+
                 static std::string prevFen;
                 static std::vector<StockfishMove> prevMoves;
 
                 if (fen != prevFen) {
-                    prevMoves = GetBestMoves(fen, g_sfPlayWhite, g_sfElo, g_sfNumberMoves, g_sfMoveDepth);
+                    prevMoves = GetBestMoves(fen, g_sfElo, g_sfNumberMoves, g_sfMoveDepth);
                     prevFen = fen;
                 }
 

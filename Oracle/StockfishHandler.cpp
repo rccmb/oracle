@@ -1,9 +1,11 @@
-#include "StockfishHandler.h"
+﻿#include "StockfishHandler.h"
 
 HANDLE g_sfInput = nullptr;
 HANDLE g_sfOutput = nullptr;
 std::mutex g_sfMutex;
 bool g_sfRunning = false;
+
+std::vector<StockfishMove> g_sfPreviousMoves;
 
 int g_sfElo = 100;
 bool g_sfPlayWhite = true;
@@ -115,15 +117,14 @@ bool StockfishIsAlive() {
     return false;
 }
 
-std::vector<StockfishMove> GetBestMoves(const std::string& fen, bool playWhite, int elo, int topN = 5, int depth = 15) {
+std::vector<StockfishMove> GetBestMoves(const std::string& fen, int elo, int topN = 5, int depth = 15) {
     std::vector<StockfishMove> moves;
-    if (!g_sfRunning) return moves;
+    if (!g_sfRunning || (g_sfPlayWhite && g_sideToMove == 'b') || (!g_sfPlayWhite && g_sideToMove == 'w')) return g_sfPreviousMoves;
 
     std::lock_guard<std::mutex> lock(g_sfMutex);
-    std::string side = playWhite ? "w" : "b";
-
     SendCommand("setoption name UCI_Elo value " + std::to_string(elo) + "\n");
-    SendCommand("position fen " + fen + " " + side + "\n");
+    // FEN already includes side-to-move; no extra side parameter is appended here.
+    SendCommand("position fen " + fen + "\n");
     SendCommand("setoption name MultiPV value " + std::to_string(topN) + "\n");
     SendCommand("go depth " + std::to_string(depth) + "\n");
 
@@ -144,6 +145,7 @@ std::vector<StockfishMove> GetBestMoves(const std::string& fen, bool playWhite, 
                     ParseInfoLine(line, moves);
                 }
                 if (line.find("bestmove") != std::string::npos) {
+                    g_sfPreviousMoves = moves;
                     return moves;
                 }
             }
@@ -153,6 +155,7 @@ std::vector<StockfishMove> GetBestMoves(const std::string& fen, bool playWhite, 
         }
     }
 
+    g_sfPreviousMoves = moves;
     return moves;
 }
 
@@ -164,4 +167,44 @@ void ShutdownStockfish() {
         CloseHandle(g_sfProcInfo.hThread);
         g_sfRunning = false;
     }
+}
+
+bool IsFENValidWithStockfish(const std::string& fen) {
+    if (!g_sfRunning) return false;
+
+    std::lock_guard<std::mutex> lock(g_sfMutex);
+
+    std::cout << "Last FEN: " << fen << std::endl;
+
+    DWORD written;
+    std::string cmd = "position fen " + fen + "\ngo depth 1\n";
+    WriteFile(g_sfInput, cmd.c_str(), (DWORD)cmd.size(), &written, NULL); 
+    
+    // Last FEN: rn1qk1nr/p1p2ppp/3p4/8/2BPP1b1/5N2/PP1N1PPP/R2QK2R w KQkq - 0 1
+    // Last FEN: rn1qk1nr/p1p2ppp/3p4/8/3PP1b1/5N2/PP1N1PPP/R2QK2R w KQkq - 0 1
+    // Last FEN: rn1qk1nr/p1p2ppp/3p4/1B6/3PP1b1/5N2/PP1N1PPP/R2QK2R w KQkq - 0 1
+
+    char buffer[4096];
+    DWORD read;
+    std::string output;
+    auto start = GetTickCount();
+
+    while (GetTickCount() - start < 500) {
+        if (PeekNamedPipe(g_sfOutput, NULL, 0, NULL, &read, NULL) && read > 0) {
+            char tmp[4096];
+            DWORD bytesRead = 0;
+            if (ReadFile(g_sfOutput, tmp, sizeof(tmp) - 1, &bytesRead, NULL)) {
+                tmp[bytesRead] = '\0';
+                output += tmp;
+                if (output.find("bestmove") != std::string::npos) break;
+            }
+        }
+        Sleep(10);
+    }
+
+    if (output.find("bestmove (none)") != std::string::npos) {
+        return false;
+    }
+
+    return (output.find("bestmove") != std::string::npos);
 }

@@ -64,4 +64,4 @@ int DetectBoardDimensions();
 void UpdateCropRects();
 
 // TODO: Documentation.
-void GenerateReferencePieceCrops(const cv::Mat& gray, int cellWidth, int cellHeight);
+void GenerateReferencePieceCrops(const cv::Mat& src, int cellWidth, int cellHeight);

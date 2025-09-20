@@ -11,7 +11,7 @@
 #include "Structs.h"
 
 /**
- * @brief Captures the client area of a window and converts it to an OpenCV Mat image.
+ * @brief Captures the client area of a window and converts it to an OpenCV Mat image. COLOR.
  *
  * @param hwnd Handle to the window whose client area is to be captured.
  * 
@@ -19,18 +19,8 @@
  */
 cv::Mat HWND2MAT(HWND hwnd);
 
-/**
- * @brief Captures the client area of a window and converts it to an OpenCV Mat image. Crops the image to the specified rectangle.
- *
- * @param hwnd Handle to the window whose client area is to be captured.
- * @param x The x-coordinate of the top-left corner of the cropping rectangle.
- * @param y The y-coordinate of the top-left corner of the cropping rectangle.
- * @param width The width of the cropping rectangle.
- * @param height The height of the cropping rectangle.
- *
- * @return cv::Mat An OpenCV matrix containing the window's client area pixel data in grayscale.
- */
-cv::Mat CropHWND2MAT(HWND hwnd, int x, int y, int width, int height);
-
 // TODO: Documentation.
 std::string PieceToUnicode(char piece);
+
+// TODO: Documentation.
+cv::Mat ApplyPaletteMasking(cv::Mat bgr);

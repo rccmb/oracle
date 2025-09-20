@@ -8,6 +8,8 @@
 #include <sstream>
 #include <windows.h>
 
+#include "Globals.h"
+
 extern HANDLE g_sfInput;
 extern HANDLE g_sfOutput;
 extern std::mutex g_sfMutex;
@@ -33,7 +35,10 @@ void LaunchStockfish(const std::string& path);
 bool StockfishIsAlive();
 
 // TODO: Documentation.
-std::vector<StockfishMove> GetBestMoves(const std::string& fen, bool playWhite, int elo, int topN, int depth);
+std::vector<StockfishMove> GetBestMoves(const std::string& fen, int elo, int topN, int depth);
 
 // TODO: Documentation.
 void ShutdownStockfish();
+
+// TODO: Documentation.
+bool IsFENValidWithStockfish(const std::string& fen);

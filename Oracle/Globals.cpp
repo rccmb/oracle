@@ -29,6 +29,7 @@ CLICK g_viewFirstClick = { -1, -1, 0 };
 CLICK g_viewSecondClick = { -1, -1, 0 };
 
 cv::Mat g_userScreenshotGray;
+cv::Mat g_userScreenshotColor;
 bool g_userScreenshotReady = false;
 bool g_samplePointsSet = false;
 bool g_cropRegionSet = false;
@@ -37,6 +38,11 @@ int g_refBlackPiece = -1;
 int g_refWhitePiece = -1;
 int g_refBoardColor1 = -1;
 int g_refBoardColor2 = -1;
+
+cv::Vec3b g_refBlackPieceColor = {0,0,0};
+cv::Vec3b g_refWhitePieceColor = {0,0,0};
+cv::Vec3b g_refBoardColor1Color = {0,0,0};
+cv::Vec3b g_refBoardColor2Color = {0,0,0};
 
 int g_analysisTolerance = 5;
 std::vector<char> g_detectedLetters(64, ' ');
@@ -52,3 +58,7 @@ bool g_boardChanged;
 std::mutex g_boardChangedMutex;
 
 bool g_noBoard = true;
+
+std::string g_lastValidFEN = "";
+
+char g_sideToMove = 'w';

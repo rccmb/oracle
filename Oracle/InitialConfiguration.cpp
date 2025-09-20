@@ -73,11 +73,36 @@ int DetectPieceColorCoding(int cellWidth, int cellHeight) {
 	tlRoi &= cv::Rect(0, 0, g_userScreenshotGray.cols, g_userScreenshotGray.rows);
 	blRoi &= cv::Rect(0, 0, g_userScreenshotGray.cols, g_userScreenshotGray.rows);
 
-	double tlVal = cv::mean(g_userScreenshotGray(tlRoi))[0];
-	double blVal = cv::mean(g_userScreenshotGray(blRoi))[0];
+    double tlVal = cv::mean(g_userScreenshotGray(tlRoi))[0];
+    double blVal = cv::mean(g_userScreenshotGray(blRoi))[0];
+
+    // Capture the actual colors.
+    if (!g_userScreenshotColor.empty()) {
+        cv::Scalar tlColorMean = cv::mean(g_userScreenshotColor(tlRoi));
+        cv::Scalar blColorMean = cv::mean(g_userScreenshotColor(blRoi));
+
+        auto toVec3b = [](const cv::Scalar& s) {
+            return cv::Vec3b(
+                (uchar)std::clamp((int)std::round(s[0]), 0, 255),
+                (uchar)std::clamp((int)std::round(s[1]), 0, 255),
+                (uchar)std::clamp((int)std::round(s[2]), 0, 255)
+            );
+        };
+
+        cv::Vec3b tlVec = toVec3b(tlColorMean);
+        cv::Vec3b blVec = toVec3b(blColorMean);
+
+        if (tlVal < blVal) {
+            g_refBlackPieceColor = tlVec;
+            g_refWhitePieceColor = blVec;
+        } else {
+            g_refBlackPieceColor = blVec;
+            g_refWhitePieceColor = tlVec;
+        }
+    }
 
 	// Darker is the black pieces.
-	if (tlVal < blVal) {
+    if (tlVal < blVal) {
 		g_refBlackPiece = (int)std::round(tlVal);
 		g_refWhitePiece = (int)std::round(blVal);
 		g_orientation = 0; // Standard orientation. White at bottom.
@@ -193,6 +218,9 @@ int DetectBoardDimensions() {
 		screenshot = g_userScreenshotGray;
 	} else {
 		screenshot = HWND2MAT(GetDesktopWindow());
+        cv::Mat gray;
+        cv::cvtColor(screenshot, gray, cv::COLOR_BGRA2GRAY);
+        screenshot = gray.clone();
 	}
 
     if (screenshot.empty()) return 0;
@@ -243,7 +271,7 @@ void UpdateCropRects() {
     }
 }
 
-void GenerateReferencePieceCrops(const cv::Mat& gray, int cellWidth, int cellHeight) {
+void GenerateReferencePieceCrops(const cv::Mat& src, int cellWidth, int cellHeight) {
     if (std::filesystem::exists(g_tempDir)) {
         std::filesystem::remove_all(g_tempDir);
     }
@@ -272,21 +300,21 @@ void GenerateReferencePieceCrops(const cv::Mat& gray, int cellWidth, int cellHei
 
     for (int col = 0; col < 5; ++col) {
         g_orientation == 0 
-            ? SaveReferencePiece(gray, rectFor(0, col), std::string("black_") + (char)pieceNamesBlack[col] + ".png")
-			: SaveReferencePiece(gray, rectFor(0, col), std::string("white_") + (char)pieceNamesWhite[col] + ".png");
+            ? SaveReferencePiece(src, rectFor(0, col), std::string("black_") + (char)pieceNamesBlack[col] + ".png")
+            : SaveReferencePiece(src, rectFor(0, col), std::string("white_") + (char)pieceNamesWhite[col] + ".png");
     }
     g_orientation == 0
-        ? SaveReferencePiece(gray, rectFor(1, 0), "black_p.png")
-        : SaveReferencePiece(gray, rectFor(1, 0), "white_P.png");
+        ? SaveReferencePiece(src, rectFor(1, 0), "black_p.png")
+        : SaveReferencePiece(src, rectFor(1, 0), "white_P.png");
     
     for (int col = 0; col < 5; ++col) {
         g_orientation == 0
-            ? SaveReferencePiece(gray, rectFor(7, col), std::string("white_") + (char)pieceNamesWhite[col] + ".png")
-            : SaveReferencePiece(gray, rectFor(7, col), std::string("black_") + (char)pieceNamesBlack[col] + ".png");
+            ? SaveReferencePiece(src, rectFor(7, col), std::string("white_") + (char)pieceNamesWhite[col] + ".png")
+            : SaveReferencePiece(src, rectFor(7, col), std::string("black_") + (char)pieceNamesBlack[col] + ".png");
     }
     g_orientation == 0
-        ? SaveReferencePiece(gray, rectFor(6, 0), "white_P.png")
-        : SaveReferencePiece(gray, rectFor(6, 0), "black_p.png");
+        ? SaveReferencePiece(src, rectFor(6, 0), "white_P.png")
+        : SaveReferencePiece(src, rectFor(6, 0), "black_p.png");
 
 	// Give time for files to flush.
     Sleep(300);

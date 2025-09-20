@@ -31,42 +31,37 @@ std::string BoardToFEN() {
     bool hasWhiteKing = false;
     bool hasBlackKing = false;
 
-    // Determine row iteration based on orientation.
-    int start = (g_orientation == 0) ? 0 : 7;
-    int end = (g_orientation == 0) ? 8 : -1;
-    int step = (g_orientation == 0) ? 1 : -1;
-
-    for (int row = start; row != end; row += step) {
+    for (int fenRank = 0; fenRank < 8; ++fenRank) {
+        int rowIndex = (g_orientation == 0) ? fenRank : (7 - fenRank);
         int emptyCount = 0;
-        for (int col = 0; col < 8; ++col) {
+        for (int file = 0; file < 8; ++file) {
+            int colIndex = (g_orientation == 0) ? file : (7 - file);
             char piece = ' ';
-            if (row < (int)g_boardGridRows.size() && col < (int)g_boardGridRows[row].size()) {
-                piece = g_boardGridRows[row][col];
+            if (rowIndex >= 0 && rowIndex < (int)g_boardGridRows.size() &&
+                colIndex >= 0 && colIndex < (int)g_boardGridRows[rowIndex].size()) {
+                piece = g_boardGridRows[rowIndex][colIndex];
             }
-
             if (piece == ' ' || piece == '\0') {
-                emptyCount++;
+                ++emptyCount;
             }
             else {
-                if (emptyCount > 0) {
-                    fen << emptyCount;
-                    emptyCount = 0;
-                }
+                if (emptyCount > 0) { fen << emptyCount; emptyCount = 0; }
                 fen << piece;
 
                 if (piece == 'K') hasWhiteKing = true;
-                if (piece == 'k') hasBlackKing = true;
+                else if (piece == 'k') hasBlackKing = true;
             }
         }
+
         if (emptyCount > 0) fen << emptyCount;
-        if (row != (step > 0 ? end - 1 : end + 1)) fen << '/';
+        if (fenRank < 7) fen << '/';
     }
 
     if (!hasWhiteKing || !hasBlackKing) {
         return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     }
 
-    fen << ' ' << (g_sfPlayWhite ? 'w' : 'b');
+    fen << ' ' << g_sideToMove;
 
     fen << " KQkq";
 
@@ -81,7 +76,12 @@ std::string BoardToFEN() {
         return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     }
 
-    return result;
+    if (IsFENValidWithStockfish(result)) {
+        g_lastValidFEN = result;
+        return result;
+    }
+
+    return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 }
 
 DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
@@ -138,7 +138,13 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
     // Continuous analysis loop.
     while(true) {
         while (g_hasAnalysisStarted) {
-            cv::Mat frame = HWND2MAT(hwndDesktop);
+            // Capture color for palette masking first, then grayscale.
+            cv::Mat frameColor = HWND2MAT(hwndDesktop);
+            cv::Mat frame;
+
+            // Convert the frame to grayscale.
+            cv::cvtColor(frameColor, frame, cv::COLOR_BGR2GRAY);
+            
             std::fill(g_detectedLetters.begin(), g_detectedLetters.end(), ' ');
 
             for (int row = 0; row < 8; row++) {
@@ -168,6 +174,13 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                     if (roi.width <= 0 || roi.height <= 0) continue;
 
                     cv::Mat cellGray = frame(roi).clone();
+                    
+                    // Apply color palette masking.
+                    if (!frameColor.empty()) {
+                        cv::Mat cellColor = frameColor(roi).clone();
+                        cellColor = ApplyPaletteMasking(cellColor);
+                    }
+                    
                     cv::Mat cellEdges;
                     cv::Canny(cellGray, cellEdges, 50, 150);
                     cv::threshold(cellEdges, cellEdges, 0, 255, cv::THRESH_BINARY);
@@ -224,8 +237,33 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                 changed = true;
             }
             else {
+                char detectedSide = '\0';
+                int evidenceRank = 0;
+
                 for (size_t i = 0; i < g_detectedLetters.size(); ++i) {
-                    if (g_detectedLetters[i] != g_prevLetterDrawQueue[i]) {
+                    char curCh = g_detectedLetters[i];
+                    char prevCh = (i < g_prevLetterDrawQueue.size()) ? g_prevLetterDrawQueue[i] : ' ';
+
+                    if (curCh == prevCh)
+                        continue;
+
+                    // TODO: En passant detection. TWO PAWNS DISAPPEARED, ONE PAWN APPEARED.
+
+					// Piece disappeared. Whoever was here, moved for this turn.
+                    if (prevCh != ' ' && curCh == ' ') {
+                        g_sideToMove = (prevCh >= 'A' && prevCh <= 'Z') ? 'b' : 'w';
+                        changed = true;
+                        break;
+                    }
+					// Piece appeared. Whoever is here, moved for this turn.
+                    else if (prevCh == ' ' && curCh != ' ') {
+                        g_sideToMove = (curCh >= 'A' && curCh <= 'Z') ? 'b' : 'w';
+                        changed = true;
+                        break;
+                    }
+                    // Piece changed. Promotion, capture or castling, whoever is here, moved for this turn.
+                    else if (prevCh != curCh) {
+                        g_sideToMove = (curCh >= 'A' && curCh <= 'Z') ? 'b' : 'w';
                         changed = true;
                         break;
                     }

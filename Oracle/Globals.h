@@ -40,14 +40,22 @@ extern CLICK g_viewFirstClick;
 extern CLICK g_viewSecondClick;
 
 extern cv::Mat g_userScreenshotGray;
+extern cv::Mat g_userScreenshotColor;
 extern bool g_userScreenshotReady;
 extern bool g_samplePointsSet;
 extern bool g_cropRegionSet;
 
+// Reference colors in Grayscale.
 extern int g_refBlackPiece;
 extern int g_refWhitePiece;
 extern int g_refBoardColor1;
 extern int g_refBoardColor2;
+
+// Reference colors in BGR.
+extern cv::Vec3b g_refBlackPieceColor;
+extern cv::Vec3b g_refWhitePieceColor;
+extern cv::Vec3b g_refBoardColor1Color;
+extern cv::Vec3b g_refBoardColor2Color;
 
 extern int g_analysisTolerance;
 extern std::vector<char> g_detectedLetters;
@@ -64,3 +72,8 @@ extern bool g_boardChanged;
 extern std::mutex g_boardChangedMutex;
 
 extern bool g_noBoard;
+
+extern std::string g_lastValidFEN;
+
+// Detected side to move ('w' or 'b').
+extern char g_sideToMove;

@@ -26,29 +26,15 @@ cv::Mat HWND2MAT(HWND hwnd) {
 
     cv::Mat src(height, width, CV_8UC4, pBits);
 
-    cv::Mat gray;
-    cv::cvtColor(src, gray, cv::COLOR_BGRA2GRAY);
-
-    cv::Mat result = gray.clone(); 
+    cv::Mat bgr;
+    cv::cvtColor(src, bgr, cv::COLOR_BGRA2BGR);
+    cv::Mat result = bgr.clone();
 
     DeleteObject(hbwindow);
     DeleteDC(hwindowCompatibleDC);
     ReleaseDC(hwnd, hwindowDC);
 
-    return result; 
-}
-
-cv::Mat CropHWND2MAT(HWND hwnd, int x, int y, int width, int height) {
-    cv::Mat full = HWND2MAT(hwnd);
-    if (full.empty()) return cv::Mat();
-
-    x = std::clamp(x, 0, full.cols - 1);
-    y = std::clamp(y, 0, full.rows - 1);
-    width = std::min(width, full.cols - x);
-    height = std::min(height, full.rows - y);
-
-    cv::Rect roi(x, y, width, height);
-    return full(roi).clone();
+    return result;
 }
 
 std::string PieceToUnicode(char piece) {
@@ -70,4 +56,26 @@ std::string PieceToUnicode(char piece) {
 
         default: return " ";
     }
+}
+
+cv::Mat ApplyPaletteMasking(cv::Mat bgr) {
+    cv::Mat mask = cv::Mat::zeros(bgr.size(), CV_8U);
+
+    auto addColorRange = [&](const cv::Vec3b& ref) {
+        if (ref == cv::Vec3b(0, 0, 0)) return;
+        cv::Scalar lo(std::max(0, ref[0] - g_analysisTolerance), std::max(0, ref[1] - g_analysisTolerance), std::max(0, ref[2] - g_analysisTolerance));
+        cv::Scalar hi(std::min(255, ref[0] + g_analysisTolerance), std::min(255, ref[1] + g_analysisTolerance), std::min(255, ref[2] + g_analysisTolerance));
+        cv::Mat m; cv::inRange(bgr, lo, hi, m); cv::bitwise_or(mask, m, mask);
+    };
+
+    addColorRange(g_refBlackPieceColor);
+    addColorRange(g_refWhitePieceColor);
+    addColorRange(g_refBoardColor1Color);
+    addColorRange(g_refBoardColor2Color);
+
+    cv::Mat filtered;
+    bgr.copyTo(filtered, mask);
+    cv::cvtColor(filtered, bgr, cv::COLOR_BGR2GRAY);
+
+    return bgr;
 }

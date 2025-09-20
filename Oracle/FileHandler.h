@@ -23,7 +23,7 @@
 cv::Mat LoadWithImdecode(const std::filesystem::path& p);
 
 // TODO: Documentation.
-void SaveReferencePiece(const cv::Mat& gray, const cv::Rect& roi, const std::string& path);
+void SaveReferencePiece(const cv::Mat& img, const cv::Rect& roi, const std::string& path);
 
 // TODO: Documentation.
 std::map<std::string, cv::Mat> LoadReferencePieces(const std::filesystem::path& tempDir);

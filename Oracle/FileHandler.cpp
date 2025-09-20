@@ -26,10 +26,13 @@ cv::Mat LoadWithImdecode(const std::filesystem::path& p) {
     return img;
 }
 
-void SaveReferencePiece(const cv::Mat& gray, const cv::Rect& roi, const std::string& path) {
-    cv::Rect bounded = roi & cv::Rect(0, 0, gray.cols, gray.rows);
+void SaveReferencePiece(const cv::Mat& img, const cv::Rect& roi, const std::string& path) {
+    cv::Rect bounded = roi & cv::Rect(0, 0, img.cols, img.rows);
     if (bounded.width <= 0 || bounded.height <= 0) return;
-    cv::Mat crop = gray(bounded).clone();
+    cv::Mat crop = img(bounded).clone();
+
+    ApplyPaletteMasking(crop);
+
     cv::Mat edges;
     cv::Canny(crop, edges, 50, 150);
     cv::imwrite((g_tempDir / path).string(), edges);
