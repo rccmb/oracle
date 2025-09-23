@@ -283,7 +283,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
                 ImGui::TextColored(colDead, "DEAD");
             }
 
-            ImGui::SliderInt("Engine ELO", &g_sfElo, 100, 4000);
+            ImGui::SliderInt("Engine ELO", &g_sfElo, 1320, 3190);
             ImGui::SliderInt("Engine Move Depth", &g_sfMoveDepth, 1, 30);
             ImGui::SliderInt("Number of Moves", &g_sfNumberMoves, 1, 10);
 
@@ -366,19 +366,69 @@ void ShowMenu(int imageWidth, int imageHeight) {
                 }
 
                 ImGui::Separator();
-                std::stringstream topMovesText;
-                topMovesText << "Top " << g_sfNumberMoves << " moves:" << std::endl;
-                ImGui::Text(topMovesText.str().c_str());
 
-                for (size_t i = 0; i < prevMoves.size(); ++i) {
-                    const auto& mv = prevMoves[i];
+                // TODO: This isn't actually doing anything interesting.
+                auto normalizeScore = [](int scoreCp) {
+                    return g_sfPlayWhite ? scoreCp : -scoreCp;
+                    };
+
+                std::vector<StockfishMove> greenMoves; 
+                std::vector<StockfishMove> yellowMoves; 
+                std::vector<StockfishMove> redMoves;    
+
+                for (const auto& mv : prevMoves) {
                     if (mv.mate) {
-                        ImGui::Text("%d. %s (mate in %d)", (int)i + 1, mv.uci.c_str(), mv.mateIn);
+                        greenMoves.push_back(mv); 
+                        continue;
+                    }
+
+                    int userScore = normalizeScore(mv.scoreCp);
+                    if (userScore > 0) {
+                        greenMoves.push_back(mv);
+                    }
+                    else if (userScore == 0) {
+                        yellowMoves.push_back(mv);
                     }
                     else {
-                        ImGui::Text("%d. %s (score %d cp)", (int)i + 1, mv.uci.c_str(), mv.scoreCp);
+                        redMoves.push_back(mv);
                     }
                 }
+
+                ImGuiTableFlags mvTableFlags = ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchSame;
+                if (ImGui::BeginTable("MoveQuality", 3, mvTableFlags, ImVec2(boardSize, 0))) {
+                    ImGui::TableSetupColumn("Advantage");
+                    ImGui::TableSetupColumn("Balanced");  
+                    ImGui::TableSetupColumn("Disadvantage"); 
+                    ImGui::TableHeadersRow();
+                    ImGui::TableNextRow();
+
+                    ImGui::TableSetColumnIndex(0);
+                    for (const auto& mv : greenMoves) {
+                        if (mv.mate)
+                            ImGui::TextColored(ImVec4(0.1f, 1.0f, 0.1f, 1.0f), "%s (mate in %d)", mv.uci.c_str(), mv.mateIn);
+                        else
+                            ImGui::TextColored(ImVec4(0.1f, 1.0f, 0.1f, 1.0f), "%s (%d cp)", mv.uci.c_str(), mv.scoreCp);
+                    }
+
+                    ImGui::TableSetColumnIndex(1);
+                    for (const auto& mv : yellowMoves) {
+                        if (mv.mate)
+                            ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.2f, 1.0f), "%s (mate in %d)", mv.uci.c_str(), mv.mateIn);
+                        else
+                            ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.2f, 1.0f), "%s (%d cp)", mv.uci.c_str(), mv.scoreCp);
+                    }
+
+                    ImGui::TableSetColumnIndex(2);
+                    for (const auto& mv : redMoves) {
+                        if (mv.mate)
+                            ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "%s (mate in %d)", mv.uci.c_str(), mv.mateIn);
+                        else
+                            ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "%s (%d cp)", mv.uci.c_str(), mv.scoreCp);
+                    }
+
+                    ImGui::EndTable();
+                }
+
             }
         }
         ImGui::End();

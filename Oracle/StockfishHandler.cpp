@@ -7,7 +7,7 @@ bool g_sfRunning = false;
 
 std::vector<StockfishMove> g_sfPreviousMoves;
 
-int g_sfElo = 100;
+int g_sfElo = 1320;
 bool g_sfPlayWhite = true;
 int g_sfMoveDepth = 1;
 int g_sfNumberMoves = 1;
@@ -24,13 +24,12 @@ static void SendCommand(const std::string& cmd) {
 }
 
 // TODO: Documentation.
-static void ParseInfoLine(const std::string& line, std::vector<StockfishMove>& moves) {
+static void ParseInfoLine(const std::string& line, StockfishMove* mv) {
     if (line.find(" pv ") == std::string::npos) return;
 
-    StockfishMove mv{};
-    mv.mate = false;
-    mv.scoreCp = 0;
-    mv.mateIn = 0;
+    mv->mate = false;
+    mv->scoreCp = 0;
+    mv->mateIn = 0;
 
     std::istringstream iss(line);
     std::string token;
@@ -38,21 +37,18 @@ static void ParseInfoLine(const std::string& line, std::vector<StockfishMove>& m
         if (token == "score") {
             iss >> token;
             if (token == "cp") {
-                iss >> mv.scoreCp;
+                iss >> mv->scoreCp;
             }
             else if (token == "mate") {
-                mv.mate = true;
-                iss >> mv.mateIn;
+                mv->mate = true;
+                iss >> mv->mateIn;
             }
         }
         else if (token == "pv") {
-            iss >> mv.uci; // first move in PV line
+            iss >> mv->uci;
             break;
         }
     }
-
-    if (!mv.uci.empty())
-        moves.push_back(mv);
 }
 
 void LaunchStockfish(const std::string& path = "stockfish/stockfish.exe") {
@@ -146,11 +142,8 @@ std::vector<StockfishMove> GetBestMoves(const std::string& fen, int elo, int top
                     line = responseEval.substr(0, pos);
                     responseEval.erase(0, pos + 1);
 
-                    std::cout << "[Stockfish Eval] " << line << std::endl;
-
                     // TODO: Improve upon this.
                     if (line.rfind("Final evaluation:", 0) == 0) {
-                        std::cout << "[Stockfish Eval] King is in check, skipping move generation." << std::endl;
                         return g_sfPreviousMoves;
                     }
                     if (line.rfind("Final evaluation", 0) == 0) {
@@ -165,15 +158,11 @@ std::vector<StockfishMove> GetBestMoves(const std::string& fen, int elo, int top
         }
     }
 
-	std::cout << "[Stockfish] Sending go depth " << depth << " command." << std::endl;
-   
     SendCommand("go depth " + std::to_string(depth) + "\n");
 
     char buffer[512];
     DWORD bytesRead = 0;
     std::string response;
-
-	std::cout << "[Stockfish] Waiting for bestmove..." << std::endl;
 
     DWORD startTick = GetTickCount();
     while (GetTickCount() - startTick < 5000) {
@@ -184,8 +173,17 @@ std::vector<StockfishMove> GetBestMoves(const std::string& fen, int elo, int top
             std::istringstream iss(response);
             std::string line;
             while (std::getline(iss, line)) {
-                if (line.find("info depth") != std::string::npos && line.find(" pv ") != std::string::npos) {
-                    ParseInfoLine(line, moves);
+                if (line.find("info depth " + std::to_string(depth)) != std::string::npos && line.find(" pv ") != std::string::npos) {
+                    StockfishMove parsed;
+                    ParseInfoLine(line, &parsed);
+
+                    auto it = std::find_if(moves.begin(), moves.end(), [&](const StockfishMove& m) { return m.uci == parsed.uci; });
+                    if (it == moves.end()) {
+                        moves.push_back(parsed);
+                    }
+                    else {
+                        *it = parsed;
+                    }
                 }
                 if (line.find("bestmove") != std::string::npos) {
                     g_sfPreviousMoves = moves;
