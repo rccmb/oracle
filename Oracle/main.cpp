@@ -4,6 +4,7 @@
 #include <opencv2/imgcodecs.hpp>
 #include <iostream>
 #include <string>
+#include <WinBase.h>
 
 #include "Utils.h"
 #include "Globals.h"
@@ -97,7 +98,7 @@ void RenderFrame() {
     g_pSwapChain->Present(1, 0);
 }
 
-int main() {
+int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdshow) {
 	// Creating overlay.
     HINSTANCE hInstance = GetModuleHandle(NULL);
     const LPCWSTR className = L"Oracle Overlay";

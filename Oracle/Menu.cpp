@@ -14,6 +14,12 @@ void ShowMenu(int imageWidth, int imageHeight) {
         return;
     }
 
+    if (!show_window) {
+        ImGui::End();
+        PostQuitMessage(0);
+        return;
+    }
+
     /* SET USER SCREENSHOT. */
     if (!g_userScreenshotReady) {
         ImGui::TextColored(ImVec4(1, 0.5f, 0, 1), "You must take a screenshot before setting clicks.");
@@ -300,7 +306,6 @@ void ShowMenu(int imageWidth, int imageHeight) {
             ImGui::Separator();
             // TODO: Implement board evaluation.
 
-
             ImGui::Text("Real-Time Board");
 
             ImGuiTableFlags tableFlags = ImGuiTableFlags_Borders
@@ -360,7 +365,6 @@ void ShowMenu(int imageWidth, int imageHeight) {
                 static std::vector<StockfishMove> prevMoves;
 
                 if (fen != prevFen) {
-					std::cout << "New FEN: " << fen << std::endl;
                     prevMoves = GetBestMoves(fen, g_sfElo, g_sfNumberMoves, g_sfMoveDepth);
                     prevFen = fen;
                 }
