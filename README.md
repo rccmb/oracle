@@ -1,5 +1,3 @@
-# Visual Studio Community C++ Console App
-
 ## Configuration
 
 1. **Install OpenCV**
