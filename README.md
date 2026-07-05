@@ -27,3 +27,5 @@ opencv_world4120d.lib      # Debug build
 
 5. **Runtime DLLs**
 To run the project, copy the DLLs from ```C:\OpenCV\opencv\build\x64\vc16\bin``` into the same folder as your executable.
+
+If you did everything correctly, this should work on your machine, press LCONTROL + F1 or ADD + SUBTRACT to enable/disable the ImGui menu and just follow the instructions on screen.
