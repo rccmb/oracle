@@ -295,11 +295,11 @@ void ShowMenu(int imageWidth, int imageHeight) {
 
             ImGui::Text("Play As:");
 
-            if (ImGui::RadioButton("Play as White", g_sfPlayWhite == 1)) {
+            if (ImGui::RadioButton("Playing as White", g_sfPlayWhite == 1)) {
                 g_sfPlayWhite = 1;
             }
             ImGui::SameLine();
-            if (ImGui::RadioButton("Play as Black", g_sfPlayWhite == 0)) {
+            if (ImGui::RadioButton("Playing as Black", g_sfPlayWhite == 0)) {
                 g_sfPlayWhite = 0;
             }
 
