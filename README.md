@@ -35,7 +35,7 @@ Oracle operates in two phases:
 ### 1. Calibration
 
 1. Take a screenshot of your desktop (captured internally).
-2. Click on two opposite-colored squares of the chessboard (`Ctrl + LMB`) to define the board corners and color reference.
+2. Click on the top-left square (a8) followed by the square directly to its right (b8) (`Ctrl + LMB`) to define the board corners and color reference.
 3. Adjust **sample point** sliders to fine-tune where each cell is sampled for occupancy detection.
 4. Adjust **crop region** sliders to define how pieces are cropped for shape matching.
 5. Oracle generates reference piece images from the starting position and transitions to analysis mode.
@@ -122,7 +122,7 @@ Launch from Visual Studio (`F5`) or run the compiled executable directly. Make s
 1. **Launch Oracle** - The overlay starts hidden.
 2. **Open the menu** - Press `Ctrl + F1`.
 3. **Take a screenshot** - Click the "Take Screenshot" button in the menu.
-4. **Set board corners** - `Ctrl + Click` on two opposite-colored squares of the chessboard.
+4. **Set board corners** - `Ctrl + Click` on the top-left square (a8) followed by the square directly to its right (b8).
 5. **Detect board** - Click "Detect Board" to validate and lock the board region.
 6. **Tune sample points** - Adjust patch size and offset sliders, then click "Set Sample Points".
 7. **Tune crop region** - Adjust crop sliders, then click "Set Crop Region" to begin analysis.

@@ -31,11 +31,9 @@ void SaveReferencePiece(const cv::Mat& img, const cv::Rect& roi, const std::stri
     if (bounded.width <= 0 || bounded.height <= 0) return;
     cv::Mat crop = img(bounded).clone();
 
-    ApplyPaletteMasking(crop);
+    crop = ApplyPaletteMasking(crop);
 
-    cv::Mat edges;
-    cv::Canny(crop, edges, 50, 150);
-    cv::imwrite((g_tempDir / path).string(), edges);
+    cv::imwrite((g_tempDir / path).string(), crop);
 }
 
 std::map<std::string, cv::Mat> LoadReferencePieces(const std::filesystem::path& tempDir) {

@@ -24,7 +24,7 @@
 #include "FileHandler.h"
 
 // TODO: Documentation.
-double SampleCellCenter(const cv::Mat& gray, int x, int y);
+double SampleCellCenter(const cv::Mat& gray, int x, int y, int offsetX, int offsetY);
 
 // TODO: Documentation.
 double CompareEdges(const cv::Mat& a, const cv::Mat& b);

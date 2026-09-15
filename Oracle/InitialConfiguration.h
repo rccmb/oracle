@@ -40,7 +40,7 @@ void UpdateDebugSamples();
  *
  * @return A Rect containing the detected chessboard area if valid, or std::nullopt if not valid.
  */
-std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, const cv::Rect& roi, cv::Mat& debugImg);
+std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, cv::Mat& debugImg);
 
 /**
  * @brief Detects the grayscale intensity reference values for black and white chess pieces based on sampled regions of the chessboard screenshot.

@@ -108,6 +108,9 @@ void ShowMenu(int imageWidth, int imageHeight) {
         g_refBoardColor1 = -1;
         g_refBoardColor2 = -1;
         g_noBoard = true;
+        g_prevLetterDrawQueue.clear();
+        g_detectedLetters.assign(64, ' ');
+        g_boardGridRows.assign(8, std::string(8, ' '));
     }
     
     /* CURRENT MODE. */
@@ -139,10 +142,18 @@ void ShowMenu(int imageWidth, int imageHeight) {
     static int prevPatchSize = g_debugPatchSize;
     static int prevOffsetX = g_debugOffsetX;
     static int prevOffsetY = g_debugOffsetY;
+    static int prevOffsetX2 = g_debugOffsetX2;
+    static int prevOffsetY2 = g_debugOffsetY2;
+    static int prevOffsetX3 = g_debugOffsetX3;
+    static int prevOffsetY3 = g_debugOffsetY3;
 
     ImGui::SliderInt("Patch Size", &g_debugPatchSize, 1, 64);
-    ImGui::SliderInt("X Offset", &g_debugOffsetX, -64, 64);
-    ImGui::SliderInt("Y Offset", &g_debugOffsetY, -64, 64);
+    ImGui::SliderInt("Point 1 X Offset", &g_debugOffsetX, -64, 64);
+    ImGui::SliderInt("Point 1 Y Offset", &g_debugOffsetY, -64, 64);
+    ImGui::SliderInt("Point 2 X Offset", &g_debugOffsetX2, -64, 64);
+    ImGui::SliderInt("Point 2 Y Offset", &g_debugOffsetY2, -64, 64);
+    ImGui::SliderInt("Point 3 X Offset", &g_debugOffsetX3, -64, 64);
+    ImGui::SliderInt("Point 3 Y Offset", &g_debugOffsetY3, -64, 64);
     if (ImGui::Button("Set Sample Points")) {
         UpdateDebugSamples();
         DetectPieceColorCoding((g_boardRect.right - g_boardRect.left) / 8, (g_boardRect.bottom - g_boardRect.top) / 8);
@@ -151,11 +162,17 @@ void ShowMenu(int imageWidth, int imageHeight) {
         UpdateCropRects();
     }
     
-    if (!g_samplePointsSet && (prevPatchSize != g_debugPatchSize || prevOffsetX != g_debugOffsetX || prevOffsetY != g_debugOffsetY)) {
+    if (!g_samplePointsSet && (prevPatchSize != g_debugPatchSize || prevOffsetX != g_debugOffsetX || prevOffsetY != g_debugOffsetY ||
+                               prevOffsetX2 != g_debugOffsetX2 || prevOffsetY2 != g_debugOffsetY2 ||
+                               prevOffsetX3 != g_debugOffsetX3 || prevOffsetY3 != g_debugOffsetY3)) {
         UpdateDebugSamples();
         prevPatchSize = g_debugPatchSize;
         prevOffsetX = g_debugOffsetX;
         prevOffsetY = g_debugOffsetY;
+        prevOffsetX2 = g_debugOffsetX2;
+        prevOffsetY2 = g_debugOffsetY2;
+        prevOffsetX3 = g_debugOffsetX3;
+        prevOffsetY3 = g_debugOffsetY3;
     }
 
     ImGui::EndDisabled();
@@ -292,6 +309,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
             ImGui::SliderInt("Engine ELO", &g_sfElo, 1320, 3190);
             ImGui::SliderInt("Engine Move Depth", &g_sfMoveDepth, 1, 30);
             ImGui::SliderInt("Number of Moves", &g_sfNumberMoves, 1, 10);
+            ImGui::SliderFloat("Match Threshold", &g_matchThreshold, 0.10f, 1.0f, "%.2f");
 
             ImGui::Text("Play As:");
 

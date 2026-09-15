@@ -34,17 +34,23 @@ void UpdateDebugSamples() {
     int cellWidth = (g_boardRect.right - g_boardRect.left) / 8;
     int cellHeight = (g_boardRect.bottom - g_boardRect.top) / 8;
 
+    int offsetsX[3] = { g_debugOffsetX, g_debugOffsetX2, g_debugOffsetX3 };
+    int offsetsY[3] = { g_debugOffsetY, g_debugOffsetY2, g_debugOffsetY3 };
+
     // Generate debug samples for all cells using current configuration.
     for (int row = 0; row < 8; row++) {
         for (int col = 0; col < 8; col++) {
-            SAMPLE sample;
             int cellCenterX = g_boardRect.left + (col * cellWidth) + (cellWidth / 2);
             int cellCenterY = g_boardRect.top + (row * cellHeight) + (cellHeight / 2);
-            sample.x = cellCenterX - (g_debugPatchSize / 2) + g_debugOffsetX;
-            sample.y = cellCenterY - (g_debugPatchSize / 2) + g_debugOffsetY;
-            sample.width = g_debugPatchSize;
-            sample.height = g_debugPatchSize;
-            g_debugSamples.push_back(sample);
+            
+            for (int s = 0; s < 3; ++s) {
+                SAMPLE sample;
+                sample.x = cellCenterX - (g_debugPatchSize / 2) + offsetsX[s];
+                sample.y = cellCenterY - (g_debugPatchSize / 2) + offsetsY[s];
+                sample.width = g_debugPatchSize;
+                sample.height = g_debugPatchSize;
+                g_debugSamples.push_back(sample);
+            }
         }
     }
 }
@@ -115,95 +121,87 @@ int DetectPieceColorCoding(int cellWidth, int cellHeight) {
 	return 1;
 }
 
-std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, const cv::Rect& roi, cv::Mat& debugImg) {
-    const int patchSize = 1;
-    const int stride = 2;
-
+std::optional<cv::Rect> ValidateChessboard(const cv::Mat& gray, cv::Mat& debugImg) {
     uchar colorA = g_clicks.first.grayscaleValue;
     uchar colorB = g_clicks.second.grayscaleValue;
-    const int colorThreshold = 5; // Acceptable difference for color match.
+    const int colorThreshold = 35; // Increased threshold for robustness against textured boards 
 
-    std::vector<cv::Point> junctions;
-    int totalChecks = 0;
-    int junctionsFound = 0;
+    // The user clicked a8 and b8. The vertical boundary between them is halfway between their x-coordinates.
+    int junction_x = (g_clicks.first.x + g_clicks.second.x) / 2;
+    int start_y = std::min(g_clicks.first.y, g_clicks.second.y);
+    
+    // We sample colors to the left and right of the boundary. 
+    // Since the distance between clicks is roughly cellW, offset = cellW / 4 is safely inside the squares.
+    int offset = std::abs(g_clicks.second.x - g_clicks.first.x) / 4;
+    if (offset < 5) offset = 5;
 
-    for (int y = roi.y; y < roi.y + roi.height; y += stride) {
-        if (junctionsFound == 7) break;
-
-        for (int x = roi.x; x < roi.x + roi.width; x += stride) {
-            if (junctionsFound == 7) break;
-
-            int offset = 5;
-            std::vector<cv::Point> cell_centers = {
-                {x - offset, y - offset}, // TL.
-                {x + offset, y - offset}, // TR.
-                {x - offset, y + offset}, // BL.
-                {x + offset, y + offset}  // BR.
-            };
-
-            bool valid = true;
-            std::vector<double> avgs;
-            for (auto& pt : cell_centers) {
-                if (pt.x < 0 || pt.x >= gray.cols ||
-                    pt.y < 0 || pt.y >= gray.rows) {
-                    valid = false;
-                    break;
-                }
-                cv::Rect patch(pt.x, pt.y, patchSize, patchSize);
-                avgs.push_back(cv::mean(gray(patch))[0]);
-            }
-            if (!valid) continue;
-
-            // Pattern 1: [A B; B A].
-            bool pattern1 =
-                std::abs(avgs[0] - colorA) < colorThreshold &&
-                std::abs(avgs[1] - colorB) < colorThreshold &&
-                std::abs(avgs[2] - colorB) < colorThreshold &&
-                std::abs(avgs[3] - colorA) < colorThreshold;
-
-            // Pattern 2: [B A; A B].
-            bool pattern2 =
-                std::abs(avgs[0] - colorB) < colorThreshold &&
-                std::abs(avgs[1] - colorA) < colorThreshold &&
-                std::abs(avgs[2] - colorA) < colorThreshold &&
-                std::abs(avgs[3] - colorB) < colorThreshold;
-
-            if (pattern1 || pattern2) {
-                junctions.emplace_back(x + offset - patchSize, y + offset - patchSize);
-                x += offset * 2; // Skip ahead to avoid overlapping checks.
-                junctionsFound += 1;
-            }
-            totalChecks++;
+    std::vector<int> junction_ys;
+    
+    // The top row is A (left) and B (right). We traverse downwards looking for the first flip to B (left) and A (right).
+    bool lookingForFlip = true;
+    
+    for (int y = start_y; y < gray.rows; y += 1) {
+        int left_x = junction_x - offset;
+        int right_x = junction_x + offset;
+        
+        if (left_x < 0 || right_x >= gray.cols) break;
+        
+        uchar left_val = gray.at<uchar>(y, left_x);
+        uchar right_val = gray.at<uchar>(y, right_x);
+        
+        // Are we currently matching the inverted state (B left, A right)?
+        bool match_flipped = 
+            std::abs(left_val - colorB) < colorThreshold && 
+            std::abs(right_val - colorA) < colorThreshold;
+            
+        // Are we matching the normal state (A left, B right)?
+        bool match_normal = 
+            std::abs(left_val - colorA) < colorThreshold && 
+            std::abs(right_val - colorB) < colorThreshold;
+            
+        if (lookingForFlip && match_flipped) {
+            junction_ys.push_back(y);
+            lookingForFlip = false; // Now we look for a flip back to normal
+            if (junction_ys.size() == 7) break; // Found all 7 vertical junctions
+            y += offset * 2; // Skip ahead safely
+        } else if (!lookingForFlip && match_normal) {
+            junction_ys.push_back(y);
+            lookingForFlip = true; // Now we look for a flip to flipped
+            if (junction_ys.size() == 7) break;
+            y += offset * 2; // Skip ahead safely
         }
     }
 
-    // Check if we found enough junctions to form a chessboard.
-    if (junctions.size() < 4) {
+    if (junction_ys.size() < 4) {
+        return std::nullopt; // Failed to find enough vertical junctions
+    }
+
+    std::vector<int> dy;
+    for (size_t i = 1; i < junction_ys.size(); ++i) {
+        dy.push_back(junction_ys[i] - junction_ys[i - 1]);
+    }
+    
+    std::sort(dy.begin(), dy.end());
+    int cellH = dy[dy.size() / 2];
+    
+    // Chessboard cells are square
+    int cellW = cellH; 
+
+    // junction_ys[0] is the top-most junction line (between rank 8 and 7).
+    int first_junction_y = junction_ys[0];
+    
+    // We know junction_x is the line between A-file and B-file (k=1).
+    int board_x = junction_x - cellW;
+    
+    // We know first_junction_y is the line between rank 8 and rank 7 (m=1).
+    int board_y = first_junction_y - cellH;
+    
+    int board_w = cellW * 8;
+    int board_h = cellH * 8;
+
+    if (board_w > gray.cols || board_h > gray.rows) {
         return std::nullopt;
     }
-
-    std::sort(junctions.begin(), junctions.end(), [](const cv::Point& a, const cv::Point& b) {
-        return (a.y < b.y) || (a.y == b.y && a.x < b.x);
-        });
-
-    cv::Point topLeft = junctions.front();
-
-    // Estimate cell size by averaging distances between adjacent junctions in x and y.
-    std::vector<int> dx, dy;
-    for (size_t i = 1; i < junctions.size(); ++i) {
-        if (junctions[i].y == junctions[i - 1].y)
-            dx.push_back(junctions[i].x - junctions[i - 1].x);
-        if (junctions[i].x == junctions[i - 1].x)
-            dy.push_back(junctions[i].y - junctions[i - 1].y);
-    }
-
-    // A chessboard is a square.
-    int cellW = dx.empty() ? patchSize * 4 : std::accumulate(dx.begin(), dx.end(), 0) / (int)dx.size();
-
-    int board_x = topLeft.x - cellW;
-    int board_y = topLeft.y - cellW;
-    int board_w = cellW * 8;
-    int board_h = cellW * 8;
 
     board_x = std::clamp(board_x, 0, gray.cols - board_w);
     board_y = std::clamp(board_y, 0, gray.rows - board_h);
@@ -225,16 +223,7 @@ int DetectBoardDimensions() {
 
     if (screenshot.empty()) return 0;
 
-    // Calculate the board ROI.
-    int width = std::abs(g_clicks.second.x - g_clicks.first.x);
-    int height = width;
-
-    int roi_x = g_clicks.first.x;
-    int roi_y = g_clicks.first.y;
-
-    cv::Rect boardROI = cv::Rect(roi_x, roi_y, width, height);
-
-    auto result = ValidateChessboard(screenshot, boardROI, screenshot);
+    auto result = ValidateChessboard(screenshot, screenshot);
     if (result) {
         // Drawing the board on the overlay.
         const cv::Rect& fixedRect = *result;

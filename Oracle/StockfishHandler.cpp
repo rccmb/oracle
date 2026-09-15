@@ -1,4 +1,4 @@
-﻿#include "StockfishHandler.h"
+#include "StockfishHandler.h"
 
 HANDLE g_sfInput = nullptr;
 HANDLE g_sfOutput = nullptr;
@@ -143,9 +143,6 @@ std::vector<StockfishMove> GetBestMoves(const std::string& fen, int elo, int top
                     responseEval.erase(0, pos + 1);
 
                     // TODO: Improve upon this.
-                    if (line.rfind("Final evaluation:", 0) == 0) {
-                        return g_sfPreviousMoves;
-                    }
                     if (line.rfind("Final evaluation", 0) == 0) {
                         evalDone = true;
                         break;

@@ -1,9 +1,7 @@
-﻿#include "ChessboardDetection.h"
+#include "ChessboardDetection.h"
 
-double SampleCellCenter(const cv::Mat& gray, int x, int y) {
+double SampleCellCenter(const cv::Mat& gray, int x, int y, int offsetX, int offsetY) {
     int patch = g_debugPatchSize;
-    int offsetX = g_debugOffsetX;
-    int offsetY = g_debugOffsetY;
 
     int startingX = x - (patch / 2) + offsetX;
     int startingY = y - (patch / 2) + offsetY;
@@ -91,43 +89,26 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
 
     std::map<std::string, cv::Mat> refs = LoadReferencePieces(g_tempDir);
 
-    // CHAMFER PREPROCESSING OF REFERENCES. DISTANCE TRANSFORMS.
-    struct RefChamferData {
+    // TEMPLATE MATCHING PREPROCESSING OF REFERENCES.
+    struct RefTemplateData {
         std::string name;
         bool isWhite;
-        cv::Mat dt;
-        cv::Size size;
+        cv::Mat tpl;
     };
 
-    std::vector<RefChamferData> refChamfers;
-    refChamfers.reserve(refs.size());
-
-    const int chamferDilate = 1;
-    cv::Mat dilateKernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(chamferDilate * 2 + 1, chamferDilate * 2 + 1));
+    std::vector<RefTemplateData> refTemplates;
+    refTemplates.reserve(refs.size());
 
     for (const auto& kv : refs) {
         const std::string& name = kv.first;
         const cv::Mat& refImg = kv.second;
         if (refImg.empty()) continue;
 
-        cv::Mat refEdges;
-        cv::threshold(refImg, refEdges, 0, 255, cv::THRESH_BINARY);
-        if (chamferDilate > 0) {
-            cv::dilate(refEdges, refEdges, dilateKernel);
-        }
-
-        // Distance to nearest edge pixel.
-        cv::Mat refEdgesInv;
-        cv::bitwise_not(refEdges, refEdgesInv);
-        cv::Mat dt;
-        cv::distanceTransform(refEdgesInv, dt, cv::DIST_L2, 3);
-
-        RefChamferData data;
+        RefTemplateData data;
         data.name = name;
         data.isWhite = (name.rfind("white_", 0) == 0);
-        data.dt = dt;
-        data.size = dt.size();
-        refChamfers.push_back(std::move(data));
+        data.tpl = refImg;
+        refTemplates.push_back(std::move(data));
     }
 
     std::fill(g_boardGridRows.begin(), g_boardGridRows.end(), std::string(8, ' '));
@@ -151,10 +132,37 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                     int cy = g_boardRect.top + (row * cellHeight) + (cellHeight / 2);
 
                     // Determine occupancy by brightness proximity.
-                    double val = SampleCellCenter(frame, cx, cy);
-                    bool looksBlack = (g_refBlackPiece >= 0) && (std::abs(val - g_refBlackPiece) <= g_analysisTolerance);
-                    bool looksWhite = (g_refWhitePiece >= 0) && (std::abs(val - g_refWhitePiece) <= g_analysisTolerance);
-                    if (!looksBlack && !looksWhite) {
+                    int offsetsX[3] = { g_debugOffsetX, g_debugOffsetX2, g_debugOffsetX3 };
+                    int offsetsY[3] = { g_debugOffsetY, g_debugOffsetY2, g_debugOffsetY3 };
+
+                    bool isPiece = false;
+                    bool allLookLikeBoard = true;
+                    bool looksBlack = false;
+                    bool looksWhite = false;
+
+                    for (int s = 0; s < 3; ++s) {
+                        double val = SampleCellCenter(frame, cx, cy, offsetsX[s], offsetsY[s]);
+                        bool localLooksBlack = (g_refBlackPiece >= 0) && (std::abs(val - g_refBlackPiece) <= g_analysisTolerance);
+                        bool localLooksWhite = (g_refWhitePiece >= 0) && (std::abs(val - g_refWhitePiece) <= g_analysisTolerance);
+                        
+                        if (localLooksBlack || localLooksWhite) {
+                            looksBlack = localLooksBlack;
+                            looksWhite = localLooksWhite;
+                            isPiece = true;
+                            break;
+                        }
+
+                        uchar board1 = (uchar)g_refBoardColor1;
+                        uchar board2 = (uchar)g_refBoardColor2;
+                        bool looksBoard1 = (std::abs(val - board1) <= g_analysisTolerance);
+                        bool looksBoard2 = (std::abs(val - board2) <= g_analysisTolerance);
+
+                        if (!looksBoard1 && !looksBoard2) {
+                            allLookLikeBoard = false;
+                        }
+                    }
+
+                    if (!isPiece && allLookLikeBoard) {
                         continue;
                     }
 
@@ -167,6 +175,14 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                         int y = cy - (g_cropPatchSize / 2) + g_cropOffsetY;
                         roi = cv::Rect(x, y, g_cropPatchSize, g_cropPatchSize);
                     }
+
+                    // Expand ROI to allow for template matching to search for shifted pieces, anti-bot jiggling.
+                    const int searchPadding = 5;
+                    roi.x -= searchPadding;
+                    roi.y -= searchPadding;
+                    roi.width += 2 * searchPadding;
+                    roi.height += 2 * searchPadding;
+
                     roi &= cv::Rect(0, 0, frame.cols, frame.rows);
                     if (roi.width <= 0 || roi.height <= 0) continue;
 
@@ -175,54 +191,37 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                     // Apply color palette masking.
                     if (!frameColor.empty()) {
                         cv::Mat cellColor = frameColor(roi).clone();
-                        cellColor = ApplyPaletteMasking(cellColor);
+                        cellGray = ApplyPaletteMasking(cellColor);
                     }
                     
-                    cv::Mat cellEdges;
-                    cv::Canny(cellGray, cellEdges, 50, 150);
-                    cv::threshold(cellEdges, cellEdges, 0, 255, cv::THRESH_BINARY);
-
-                    double bestChamfer = 1e18;
+                    double bestMatch = -1.0;
                     char bestLetter = looksBlack ? 'p' : 'P';
                     std::string bestName;
 
-                    cv::Mat candidateResized;
-                    std::vector<cv::Point> edgePoints;
-
-                    for (const auto& rd : refChamfers) {
+                    for (const auto& rd : refTemplates) {
                         if (rd.isWhite && looksBlack) continue;
                         if (!rd.isWhite && looksWhite) continue;
 
-                        if (candidateResized.size() != rd.size) {
-                            cv::resize(cellEdges, candidateResized, rd.size, 0, 0, cv::INTER_NEAREST);
+                        if (cellGray.cols < rd.tpl.cols || cellGray.rows < rd.tpl.rows) {
+                            // Failsafe in case the user shrinks the crop size in UI after saving templates, or screen bounds clip the ROI
+                            continue;
                         }
 
-                        edgePoints.clear();
-                        cv::findNonZero(candidateResized, edgePoints);
-                        if (edgePoints.empty()) continue;
+                        cv::Mat result;
+                        cv::matchTemplate(cellGray, rd.tpl, result, cv::TM_CCOEFF_NORMED);
+                        
+                        double minVal, maxVal;
+                        cv::minMaxLoc(result, &minVal, &maxVal);
 
-                        const cv::Mat& dt = rd.dt;
-                        double sumDist = 0.0;
-                        for (const cv::Point& p : edgePoints) {
-                            int px = std::clamp(p.x, 0, dt.cols - 1);
-                            int py = std::clamp(p.y, 0, dt.rows - 1);
-                            sumDist += dt.at<float>(py, px);
-                        }
-                        double meanDist = sumDist / (double)edgePoints.size();
-
-                        if (meanDist < bestChamfer) {
-                            bestChamfer = meanDist;
+                        if (maxVal > bestMatch) {
+                            bestMatch = maxVal;
                             bestName = rd.name;
-
-                            char pieceChar = bestName.back(); 
-                            bestLetter = pieceChar;
+                            bestLetter = bestName.back();
                         }
                     }
 
-                    const double chamferScale = 3.0;
-                    double similarity = std::exp(-bestChamfer / chamferScale);
                     // TODO: Make similarity editable with ImGui.
-                    if (similarity >= 0.90) {
+                    if (bestMatch >= g_matchThreshold) {
                         g_detectedLetters[idx] = bestLetter;
                     }
                 }

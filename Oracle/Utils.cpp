@@ -1,4 +1,4 @@
-﻿#include "Utils.h"
+#include "Utils.h"
 
 cv::Mat HWND2MAT(HWND hwnd) {
     HDC hwindowDC = GetDC(hwnd);
@@ -59,23 +59,28 @@ std::string PieceToUnicode(char piece) {
 }
 
 cv::Mat ApplyPaletteMasking(cv::Mat bgr) {
+    if (bgr.empty()) return bgr;
+
     cv::Mat mask = cv::Mat::zeros(bgr.size(), CV_8U);
 
-    auto addColorRange = [&](const cv::Vec3b& ref) {
-        if (ref == cv::Vec3b(0, 0, 0)) return;
+    auto addBoardColorRange = [&](const cv::Vec3b& ref) {
         cv::Scalar lo(std::max(0, ref[0] - g_analysisTolerance), std::max(0, ref[1] - g_analysisTolerance), std::max(0, ref[2] - g_analysisTolerance));
         cv::Scalar hi(std::min(255, ref[0] + g_analysisTolerance), std::min(255, ref[1] + g_analysisTolerance), std::min(255, ref[2] + g_analysisTolerance));
-        cv::Mat m; cv::inRange(bgr, lo, hi, m); cv::bitwise_or(mask, m, mask);
+        cv::Mat m; 
+        cv::inRange(bgr, lo, hi, m); 
+        cv::bitwise_or(mask, m, mask);
     };
 
-    addColorRange(g_refBlackPieceColor);
-    addColorRange(g_refWhitePieceColor);
-    addColorRange(g_refBoardColor1Color);
-    addColorRange(g_refBoardColor2Color);
+    // Find all pixels that belong to the empty board background.
+    addBoardColorRange(g_refBoardColor1Color);
+    addBoardColorRange(g_refBoardColor2Color);
 
-    cv::Mat filtered;
-    bgr.copyTo(filtered, mask);
+    // Replace the board background with a perfectly uniform color.
+    // This leaves the pieces completely untouched, preserving all their gradients and texture.
+    cv::Mat filtered = bgr.clone();
+    cv::Scalar uniformBg(g_refBoardColor1Color[0], g_refBoardColor1Color[1], g_refBoardColor1Color[2]);
+    filtered.setTo(uniformBg, mask);
+
     cv::cvtColor(filtered, bgr, cv::COLOR_BGR2GRAY);
-
     return bgr;
 }
