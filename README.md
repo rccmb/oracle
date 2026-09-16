@@ -6,6 +6,12 @@
 </p>
 
 <p align="center">
+  <a href="https://youtu.be/QZ0bH_iGHVM">
+    <img src="https://img.youtube.com/vi/QZ0bH_iGHVM/maxresdefault.jpg" alt="Oracle Trailer" width="800">
+  </a>
+</p>
+
+<p align="center">
   <a href="#features">Features</a> •
   <a href="#how-it-works">How It Works</a> •
   <a href="#prerequisites">Prerequisites</a> •
