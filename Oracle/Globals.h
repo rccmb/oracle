@@ -23,8 +23,11 @@ extern std::vector<SAMPLE> g_cropRects;
 
 extern bool g_isConfiguringSamplePoints;
 extern bool g_isConfiguringCropRegion;
+extern bool g_cropRegionSet;
 extern bool g_hasAnalysisStarted;
 extern bool g_isRescanning;
+
+extern std::vector<StockfishMove> g_sfBestMoves;
 extern bool g_boardClicksReady;
 
 extern int g_clickStage;

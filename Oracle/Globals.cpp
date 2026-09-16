@@ -9,6 +9,8 @@ bool g_isConfiguringSamplePoints = true;
 bool g_isConfiguringCropRegion = false;
 bool g_hasAnalysisStarted = false;
 bool g_isRescanning = false;
+
+std::vector<StockfishMove> g_sfBestMoves;
 bool g_boardClicksReady = false;
 
 int g_clickStage = 0; 

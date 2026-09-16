@@ -286,6 +286,15 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                 g_boardGridRows = std::move(newRows);
                 g_noBoard = false;
             }
+
+            if (StockfishIsAlive()) {
+                std::string fen = BoardToFEN();
+                static std::string lastQueriedFen;
+                if (fen != lastQueriedFen) {
+                    g_sfBestMoves = GetBestMoves(fen, g_sfElo, g_sfNumberMoves, g_sfMoveDepth);
+                    lastQueriedFen = fen;
+                }
+            }
         }
 
         Sleep(10);

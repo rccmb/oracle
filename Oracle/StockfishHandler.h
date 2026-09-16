@@ -20,13 +20,7 @@ extern bool g_sfPlayWhite;
 extern int g_sfMoveDepth;
 extern int g_sfNumberMoves;
 
-// TODO: Documentation.
-struct StockfishMove {
-    std::string uci;   // Move in UCI format.
-    int scoreCp;       // Score in centipawns.
-    bool mate;         // True if this is a mate score.
-    int mateIn;        // Number of moves to mate.
-};
+// StockfishMove is now in Structs.h
 
 // TODO: Documentation.
 void LaunchStockfish(const std::string& path);

@@ -185,7 +185,16 @@ void ShowMenu(int imageWidth, int imageHeight) {
     ImGui::Separator();
     ImGui::Text("Crop Region Parameters");
     ImGui::BeginDisabled(!g_samplePointsSet || g_cropRegionSet);
-    ImGui::SliderInt("Crop Size", &g_cropPatchSize, 1, 64);
+    
+    int maxCropSize = 64;
+    if ((g_boardRect.right - g_boardRect.left) > 0) {
+        maxCropSize = (g_boardRect.right - g_boardRect.left) / 8;
+    }
+    if (g_cropPatchSize > maxCropSize) {
+        g_cropPatchSize = maxCropSize;
+    }
+
+    ImGui::SliderInt("Crop Size", &g_cropPatchSize, 1, maxCropSize);
     ImGui::SliderInt("Crop X Offset", &g_cropOffsetX, -64, 64);
     ImGui::SliderInt("Crop Y Offset", &g_cropOffsetY, -64, 64);
 
@@ -379,14 +388,6 @@ void ShowMenu(int imageWidth, int imageHeight) {
             if (stockfishAlive) {
                 std::string fen = BoardToFEN();
 
-                static std::string prevFen;
-                static std::vector<StockfishMove> prevMoves;
-
-                if (fen != prevFen) {
-                    prevMoves = GetBestMoves(fen, g_sfElo, g_sfNumberMoves, g_sfMoveDepth);
-                    prevFen = fen;
-                }
-
                 ImGui::Separator();
 
                 // TODO: This isn't actually doing anything interesting.
@@ -398,7 +399,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
                 std::vector<StockfishMove> yellowMoves; 
                 std::vector<StockfishMove> redMoves;    
 
-                for (const auto& mv : prevMoves) {
+                for (const auto& mv : g_sfBestMoves) {
                     if (mv.mate) {
                         greenMoves.push_back(mv); 
                         continue;

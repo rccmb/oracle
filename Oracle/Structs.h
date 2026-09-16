@@ -29,3 +29,11 @@ struct SAMPLE {
     int width;
     int height;
 };
+
+// TODO: Documentation.
+struct StockfishMove {
+    std::string uci;   // Move in UCI format.
+    int scoreCp;       // Score in centipawns.
+    bool mate;         // True if this is a mate score.
+    int mateIn;        // Number of moves to mate.
+};

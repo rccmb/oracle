@@ -84,6 +84,41 @@ void RenderFrame() {
         }
     }
 
+    // Draw the best move on the board
+    if (!g_isRescanning && !g_sfBestMoves.empty() && !g_isConfiguringCropRegion && !g_isConfiguringSamplePoints &&
+        (g_boardRect.right - g_boardRect.left) > 0 && (g_boardRect.bottom - g_boardRect.top) > 0) {
+        
+        const auto& bestMove = g_sfBestMoves.front();
+        if (bestMove.uci.length() >= 4) {
+            char srcFile = bestMove.uci[0];
+            char srcRank = bestMove.uci[1];
+            char dstFile = bestMove.uci[2];
+            char dstRank = bestMove.uci[3];
+            
+            auto DrawMoveDot = [&](char f, char r, ImU32 color) {
+                int col = f - 'a';
+                int row = '8' - r;
+                if (g_orientation == 1) { // Black at bottom
+                    col = 7 - col;
+                    row = 7 - row;
+                }
+                
+                int cellWidth = (g_boardRect.right - g_boardRect.left) / 8;
+                int cellHeight = (g_boardRect.bottom - g_boardRect.top) / 8;
+                
+                float radius = std::min(cellWidth, cellHeight) / 20.0f;
+                int cx = g_boardRect.left + col * cellWidth + (int)(radius + 4.0f);
+                int cy = g_boardRect.top + row * cellHeight + (int)(radius + 4.0f);
+                
+                draw_list->AddCircleFilled(ImVec2((float)cx, (float)cy), radius, color);
+            };
+            
+            // Draw Orange dot for Source, Green dot for Destination
+            DrawMoveDot(srcFile, srcRank, IM_COL32(255, 165, 0, 200)); 
+            DrawMoveDot(dstFile, dstRank, IM_COL32(0, 255, 0, 200));   
+        }
+    }
+
 	// Showing the ImGui menu.
     if (IMGUI_MENU_VISIBLE) {
         ShowMenu(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
