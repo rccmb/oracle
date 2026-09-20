@@ -1054,3 +1054,11 @@ Oracle/temp/
 Oracle/screenshot.png
 Oracle/debug_screenshot*.png
 Oracle/debug_screenshot*.jpg
+
+# Oracle: detection check tool build output
+tools/BoardDetectionCheck/*.exe
+tools/BoardDetectionCheck/*.obj
+tools/BoardDetectionCheck/*.dll
+tools/BoardDetectionCheck/*.pdb
+tools/BoardDetectionCheck/*.ilk
+tools/BoardDetectionCheck/corpus/
