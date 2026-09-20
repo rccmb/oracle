@@ -78,6 +78,20 @@ static bool ParseInfoLine(const std::string& line, StockfishMove* mv) {
     return !mv->uci.empty();
 }
 
+// Depth an "info" line reports, or 0 when it carries none.
+static int ParseDepth(const std::string& line) {
+    std::istringstream iss(line);
+    std::string token;
+    while (iss >> token) {
+        if (token == "depth") {
+            int depth = 0;
+            if (iss >> depth) return depth;
+            return 0;
+        }
+    }
+    return 0;
+}
+
 // Releases the handles of an engine that has gone away, so a relaunch starts
 // from a clean slate rather than writing into a broken pipe.
 static void ReleaseStockfishHandles() {
@@ -206,6 +220,17 @@ std::vector<StockfishMove> GetBestMoves(const std::string& fen, int elo, int top
     }
     SendCommand("setoption name MultiPV value " + std::to_string(topN) + "\n");
 
+    // The published evaluation is always from White's point of view. Working
+    // that out once here saves every reader from having to know whose turn it is,
+    // and stops the bar reading backwards for whoever is playing black.
+    bool whiteToMove = true;
+    {
+        const size_t space = fen.find(' ');
+        if (space != std::string::npos && space + 1 < fen.size()) {
+            whiteToMove = (fen[space + 1] != 'b');
+        }
+    }
+
     SendCommand("position fen " + fen + "\n");
 
     // An "eval" round-trip used to sit here, scanning up to two seconds for the
@@ -242,7 +267,19 @@ std::vector<StockfishMove> GetBestMoves(const std::string& fen, int elo, int top
 
                 if (line.rfind("info", 0) == 0) {
                     StockfishMove parsed;
-                    if (ParseInfoLine(line, &parsed)) byRank[parsed.multipv] = parsed;
+                    if (!ParseInfoLine(line, &parsed)) continue;
+                    byRank[parsed.multipv] = parsed;
+
+                    // Publish the running evaluation as each depth lands, rather
+                    // than once when the search finishes. This is what lets the
+                    // bar climb toward the answer instead of jumping to it.
+                    if (parsed.multipv == 1) {
+                        g_liveEvalCpWhite.store(whiteToMove ? parsed.scoreCp : -parsed.scoreCp);
+                        g_liveEvalIsMate.store(parsed.mate);
+                        g_liveEvalMateInWhite.store(whiteToMove ? parsed.mateIn : -parsed.mateIn);
+                        g_liveEvalDepth.store(ParseDepth(line));
+                        g_liveEvalValid.store(true);
+                    }
                     continue;
                 }
 

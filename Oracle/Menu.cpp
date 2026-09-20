@@ -487,37 +487,45 @@ void ShowMenu(int imageWidth, int imageHeight) {
 
             /* EVALUATION BAR. */
             {
-                // Engine scores arrive from the point of view of whoever is to
-                // move, and moves are only requested on our own turn, so the
-                // score belongs to the side Oracle is playing. A bar reads by
-                // convention from white's side, hence the flip.
-                bool haveEval = false;
-                bool evalIsMate = false;
-                int evalMateIn = 0;
-                int evalCp = 0;
-
-                if (!bestMoves.empty()) {
-                    const StockfishMove& top = bestMoves.front();
-                    haveEval = true;
-                    evalIsMate = top.mate;
-                    evalMateIn = g_sfPlayWhite ? top.mateIn : -top.mateIn;
-                    evalCp = g_sfPlayWhite ? top.scoreCp : -top.scoreCp;
-                }
+                // Taken from the running evaluation, which the engine reader
+                // republishes on every completed depth, already in White's terms.
+                const bool haveEval = g_liveEvalValid.load();
+                const bool evalIsMate = g_liveEvalIsMate.load();
+                const int evalMateIn = g_liveEvalMateInWhite.load();
+                const int evalCp = g_liveEvalCpWhite.load();
+                const int evalDepth = g_liveEvalDepth.load();
 
                 // Centipawns are unbounded, so a linear bar would sit pinned at
                 // one end for most of a game. This is the usual logistic mapping
                 // from score to expected result, which keeps the interesting
                 // range legible and saturates gracefully.
-                float whiteShare = 0.5f;
+                float targetShare = 0.5f;
                 if (haveEval) {
                     if (evalIsMate) {
-                        whiteShare = (evalMateIn > 0) ? 1.0f : 0.0f;
+                        targetShare = (evalMateIn > 0) ? 1.0f : 0.0f;
                     }
                     else {
                         const float chances = 2.0f / (1.0f + std::exp(-0.004f * (float)evalCp)) - 1.0f;
-                        whiteShare = std::clamp(0.5f + 0.5f * chances, 0.02f, 0.98f);
+                        targetShare = std::clamp(0.5f + 0.5f * chances, 0.02f, 0.98f);
                     }
                 }
+
+                // The bar chases its target rather than being set to it. Each
+                // completed depth moves the target a little, and easing turns
+                // that series of small corrections into one continuous slide
+                // instead of a stack of jumps. Frame-rate independent, so it
+                // glides at the same speed however fast the overlay is drawing.
+                static float shownShare = 0.5f;
+                const float deltaTime = std::clamp(ImGui::GetIO().DeltaTime, 0.0f, 0.1f);
+                const float responseTime = 0.20f; // Seconds to close about two thirds of the gap.
+                const float blend = 1.0f - std::exp(-deltaTime / responseTime);
+                shownShare += (targetShare - shownShare) * blend;
+
+                // Snap once it is close enough that the remaining motion is not
+                // visible, so the bar settles rather than creeping forever.
+                if (std::fabs(targetShare - shownShare) < 0.0015f) shownShare = targetShare;
+
+                const float whiteShare = shownShare;
 
                 char readout[32];
                 if (!haveEval) {
@@ -570,7 +578,8 @@ void ShowMenu(int imageWidth, int imageHeight) {
                         "No legal moves: checkmate or stalemate.");
                 }
                 else if (haveEval) {
-                    ImGui::TextDisabled("%s", whiteFavoured ? "White is better" : "Black is better");
+                    ImGui::TextDisabled("%s  (depth %d)",
+                        whiteFavoured ? "White is better" : "Black is better", evalDepth);
                 }
             }
 

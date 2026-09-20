@@ -12,6 +12,7 @@
 #include <vector>
 #include <numeric>
 #include <string>
+#include <atomic>
 #include <filesystem>
 
 #include "Structs.h"
@@ -113,3 +114,17 @@ extern bool g_trackerResetRequested;
 
 // Whether the overlay draws an arrow for each suggestion beneath its number.
 extern bool g_showMoveArrows;
+
+// The evaluation as the search deepens, republished on every completed depth
+// rather than once when the search ends. Atomics rather than the analysis mutex:
+// these are written from inside the engine read loop, which already holds the
+// engine lock, and a second lock taken there would fix an ordering between the
+// two for no reason.
+//
+// Always from White's point of view, so the bar does not have to know whose turn
+// it is, and so it reads the same way round for both players.
+extern std::atomic<bool> g_liveEvalValid;
+extern std::atomic<int> g_liveEvalCpWhite;
+extern std::atomic<bool> g_liveEvalIsMate;
+extern std::atomic<int> g_liveEvalMateInWhite;  // Positive when White is mating.
+extern std::atomic<int> g_liveEvalDepth;

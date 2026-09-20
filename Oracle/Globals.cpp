@@ -79,3 +79,9 @@ bool g_trackerInSync = true;
 bool g_sfMovesAreOurs = true;
 bool g_trackerResetRequested = false;
 bool g_showMoveArrows = true;
+
+std::atomic<bool> g_liveEvalValid{ false };
+std::atomic<int> g_liveEvalCpWhite{ 0 };
+std::atomic<bool> g_liveEvalIsMate{ false };
+std::atomic<int> g_liveEvalMateInWhite{ 0 };
+std::atomic<int> g_liveEvalDepth{ 0 };

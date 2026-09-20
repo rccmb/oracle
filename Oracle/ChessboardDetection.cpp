@@ -202,6 +202,7 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                 g_trackerResetRequested = false;
                 tracker.Reset();
                 previousFrameColor.release();
+                g_liveEvalValid.store(false);
 
                 std::lock_guard<std::mutex> publish(g_analysisStateMutex);
                 g_trackedFen = tracker.Position().ToFen();
