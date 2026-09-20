@@ -4,7 +4,7 @@ This document describes the internal architecture of Oracle - how the modules ar
 
 ## High-Level Overview
 
-Oracle is a single-process Windows desktop application composed of three concurrent threads and a shared global state layer:
+Oracle is a single-process Windows desktop application composed of two concurrent threads and a shared global state layer:
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -23,11 +23,11 @@ Oracle is a single-process Windows desktop application composed of three concurr
 ├─────────┼──────────────────────────┼─────────────────────────────────┤
 │         │                 Background Threads                         │
 │         │                          │                                 │
-│  ┌──────┴───────────┐    ┌─────────┴─────────┐                       │
-│  │ ChessboardDetect │    │ BoardStateManager │                       │
-│  │     Thread       │    │      Thread       │                       │
-│  │ (Vision + FEN)   │    │ (Change Detect)   │                       │
-│  └───────┬──────────┘    └───────────────────┘                       │
+│  ┌──────┴───────────┐                                                │
+│  │ ChessboardDetect │                                                │
+│  │     Thread       │                                                │
+│  │ (Vision + FEN)   │                                                │
+│  └───────┬──────────┘                                                │
 │          │                                                           │
 │  ┌───────┴──────────┐                                                │
 │  │ StockfishHandler │                                                │
@@ -85,7 +85,7 @@ All inter-module communication flows through global variables declared in `Globa
 | Detection state | `g_detectedLetters`, `g_boardGridRows`, `g_lastValidFEN` | Current board position as detected by vision |
 | Debug/tuning | `g_debugPatchSize`, `g_debugOffsetX/Y`, `g_cropPatchSize`, `g_cropOffsetX/Y`, `g_analysisTolerance` | User-adjustable vision parameters |
 | Stockfish | `g_sfElo`, `g_sfPlayWhite`, `g_sfMoveDepth`, `g_sfNumberMoves` | Engine configuration |
-| Threading | `g_boardChanged`, `g_boardChangedMutex` | Cross-thread change notification |
+| Threading | `g_boardChanged`, `g_boardChangedMutex`, `g_analysisStateMutex` | Cross-thread change notification and the lock over shared analysis output |
 
 > **Design Note:** The heavy reliance on globals is a known simplification. See the [Roadmap](ROADMAP.md) for plans to encapsulate state into proper classes.
 
@@ -157,6 +157,48 @@ The largest module by line count. Renders the complete ImGui interface using two
 
 ### Computer Vision Pipeline
 
+#### `BoardDetection.h / BoardDetection.cpp` - Automatic Setup
+
+Locates a chessboard anywhere in a desktop capture with no user input, and reads
+everything calibration used to ask for: both square colours, both piece colours,
+the orientation, and the sampling geometry.
+
+| Function | Purpose |
+|---|---|
+| `DetectChessboard()` | Finds the board, its cell size and its two square colours |
+| `EstimatePieceColors()` | Reads the two piece colours and the orientation from a located board |
+| `ApplyDerivedSampleGeometry()` | Sizes sample patches, crop regions and tolerance from the board |
+| `LuminanceOf()` | Perceived brightness, used wherever a colour needs a grayscale twin |
+
+**Search:**
+
+1. **Square candidates.** Canny, then contours whose bounding box is square and
+   whose every point lies on that box's border, touching all four sides.
+   Rectangularity cannot be tested by area here: a board square appears in an
+   edge map as a one pixel ring, which OpenCV traces by running around it and
+   back, so the shoelace sum cancels and `contourArea` returns zero for exactly
+   the squares being sought.
+2. **Cell size and phase.** For each commonly occurring candidate size, vote the
+   candidates' positions modulo that size to find the grid phase both axes agree
+   on, and snap candidates onto the resulting lattice.
+3. **Placement.** Score every 8x8 window of the lattice with a summed-area table
+   and keep the competitive ones. Ties are routine and are not broken here.
+4. **Verification.** Score each surviving placement against the two-colour
+   checker pattern and keep the best.
+
+Two properties make this work mid-game. Only about half a board's squares yield a
+clean contour, so the grid is fixed from a handful and pieces never need to be
+absent. And verification reads all sixty-four squares from their **corners**,
+which piece glyphs leave showing, rather than only the empty ones: a checkerboard
+still alternates when shifted a whole rank, so scoring the visible squares alone
+ranks a window slid off the board just as highly. What separates the true
+placement is that all sixty-four of its squares are board.
+
+`tools/BoardDetectionCheck` runs this over a screenshot offline, with a stage
+trace, so a change that breaks a site or theme is visible without a live game.
+
+---
+
 #### `InitialConfiguration.h / InitialConfiguration.cpp` - Calibration
 
 Handles the one-time setup before analysis can begin:
@@ -227,18 +269,6 @@ Update g_boardGridRows → BoardToFEN()
 
 ---
 
-#### `BoardStateManager.h / BoardStateManager.cpp` - Change Detection
-
-A secondary background thread that:
-1. Copies `g_detectedLetters` into `g_letterDrawQueue`.
-2. Compares with `g_prevLetterDrawQueue`.
-3. If a change is detected, updates `g_boardGridRows` and sets `g_boardChanged = true` under a mutex.
-4. Includes debug logging of the 8×8 grids to stdout.
-
-> **Note:** There is partial overlap between this module and the change detection in `ChessboardDetection.cpp`. Consolidation is planned (see [Roadmap](ROADMAP.md)).
-
----
-
 ### Engine Integration
 
 #### `StockfishHandler.h / StockfishHandler.cpp` - Stockfish UCI
@@ -301,12 +331,12 @@ Oracle                          Stockfish
 |---|---|---|---|
 | **Main** | OS | App lifetime | Win32 message pump, D3D11 rendering, ImGui |
 | **ChessboardDetection** | `CreateThread()` in main loop | Once analysis starts, runs indefinitely | Screen capture, piece detection, FEN generation, Stockfish queries |
-| **LetterRender** | `CreateThread()` (BoardStateManager) | Once analysis starts, runs indefinitely | Change detection, debug logging |
 
 **Synchronization:**
-- `g_boardChangedMutex` - Guards `g_boardChanged` between the detection and render threads.
+- `g_analysisStateMutex` - Guards the state the detection thread produces and the render thread consumes: `g_boardGridRows`, `g_detectedLetters`, `g_sfBestMoves` and `g_lastValidFEN`. These are vectors and strings the producer reallocates, so it is held on both sides, only long enough to copy in or out.
+- `g_boardChangedMutex` - Guards `g_boardChanged`.
 - `g_sfMutex` - Serializes all Stockfish I/O.
-- Most other globals are written by one thread and read by another, relying on the `Sleep(10)` throttle for loose synchronization. This is a known area for improvement.
+- The remaining globals are configuration written by the render thread and read by the detection thread. A torn read of an `int` slider costs one frame of analysis, so these are left unguarded deliberately; anything with an allocation behind it belongs under `g_analysisStateMutex`.
 
 ---
 

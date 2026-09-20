@@ -26,8 +26,9 @@
 
 ## Features
 
-- **Real-Time Screen Capture** - Continuously captures your desktop to detect the chessboard, no browser extension or plugin needed.
-- **Automatic Board Detection** - Uses OpenCV to locate and validate the chessboard grid from a user-guided screenshot.
+- **One-Click Setup** - Finds the board on screen by itself, along with both square colours, both piece colours and the orientation. No clicking corners, no sliders.
+- **Real-Time Screen Capture** - Watches the board for changes, no browser extension or plugin needed.
+- **Multi-Monitor and High-DPI** - Per-monitor DPI aware, and the board can sit on any display.
 - **Piece Recognition** - Identifies pieces using chamfer distance matching against reference images generated during calibration.
 - **Stockfish Integration** - Communicates with a bundled Stockfish engine via the UCI protocol to compute the best moves in real time.
 - **Transparent Overlay** - Renders a DirectX 11 overlay on top of your screen, drawing the detected board rectangle and configuration guides without blocking your view.
@@ -38,13 +39,19 @@
 
 Oracle operates in two phases:
 
-### 1. Calibration
+### 1. Setup
 
-1. Take a screenshot of your desktop (captured internally).
-2. Click on the top-left square (a8) followed by the square directly to its right (b8) (`Ctrl + LMB`) to define the board corners and color reference.
-3. Adjust **sample point** sliders to fine-tune where each cell is sampled for occupancy detection.
-4. Adjust **crop region** sliders to define how pieces are cropped for shape matching.
-5. Oracle generates reference piece images from the starting position and transitions to analysis mode.
+Press **Detect Board**. Oracle searches the screen for the one thing that is a
+grid of equally sized, axis-aligned squares in two alternating colours, reads the
+square and piece colours from it, works out which way round the board is, sizes
+its sampling geometry from the detected squares, captures reference pieces from
+the starting rows, and starts analysing.
+
+The board must be at the **starting position**, since that is where the reference
+pieces come from. Nothing else is required.
+
+If a board cannot be read automatically, **Manual calibration** still offers the
+original flow: screenshot, `Ctrl + LMB` on a8 then b8, and the sampling sliders.
 
 ### 2. Analysis
 
@@ -81,35 +88,22 @@ cd oracle
 
 Download the pre-built OpenCV 4.12.0 binaries from [opencv.org/releases](https://opencv.org/releases/) and extract them (e.g., to `OpenCV\` directory at the root of the repo).
 
-### 3. Configure Visual Studio
+### 3. Build
 
-Open `Oracle/Oracle.sln` in Visual Studio 2022 and set the following project properties for your active configuration (e.g., `Debug | x64`):
+Open `Oracle/Oracle.sln` in Visual Studio 2022, select **x64**, and build
+(`Ctrl + Shift + B`). Both Debug and Release are configured, no project
+properties need editing, and the matching OpenCV DLL is copied next to the
+executable automatically.
 
-**Include Directories** - *Project Properties → VC++ Directories → Include Directories*:
-```
-OpenCV\build\include
-```
+If OpenCV lives somewhere other than `OpenCV\opencv\build` inside this
+repository, point `ORACLE_OPENCV_ROOT` at its build directory, or pass it
+directly to MSBuild:
 
-**Library Directories** - *Project Properties → Linker → General → Additional Library Directories*:
 ```
-OpenCV\build\x64\vc16\lib
-```
-
-**Linker Input** - *Project Properties → Linker → Input → Additional Dependencies*:
-```
-opencv_world4120.lib       # Release build
-opencv_world4120d.lib      # Debug build
+msbuild Oracle.sln -p:Configuration=Release -p:Platform=x64 -p:OracleOpenCVRoot=D:\opencv\build
 ```
 
-### 4. Copy Runtime DLLs
-
-Copy the OpenCV DLLs from `OpenCV\build\x64\vc16\bin` into the output directory (e.g., `Oracle/x64/Debug/`), or add the bin directory to your system `PATH`, may or may not be automatically generated so check before.
-
-### 5. Build
-
-Set the build configuration to **x64** and build the solution (`Ctrl + Shift + B`).
-
-### 6. Run
+### 4. Run
 
 Launch from Visual Studio (`F5`) or run the compiled executable directly. Make sure `stockfish/stockfish.exe` is accessible relative to the executable's working directory.
 
@@ -121,19 +115,20 @@ Launch from Visual Studio (`F5`) or run the compiled executable directly. Make s
 |---|---|
 | `Ctrl + F1` | Toggle the overlay menu on/off |
 | `Numpad + / Numpad -` | Alternative toggle for the overlay menu |
-| `Ctrl + LMB` | Set board corner clicks (during calibration) |
+| `Ctrl + LMB` | Set board corner clicks (manual calibration only) |
 
 ### Step-by-Step
 
 1. **Launch Oracle** - The overlay starts hidden.
-2. **Open the menu** - Press `Ctrl + F1`.
-3. **Take a screenshot** - Click the "Take Screenshot" button in the menu.
-4. **Set board corners** - `Ctrl + Click` on the top-left square (a8) followed by the square directly to its right (b8).
-5. **Detect board** - Click "Detect Board" to validate and lock the board region.
-6. **Tune sample points** - Adjust patch size and offset sliders, then click "Set Sample Points".
-7. **Tune crop region** - Adjust crop sliders, then click "Set Crop Region" to begin analysis.
-8. **View results** - The "Real-Time Analysis" window shows the live board and Stockfish's best moves.
-9. **Adjust engine** - Use the ELO, depth, and number-of-moves sliders to tune Stockfish behavior.
+2. **Open a board** at the starting position, on any site or desktop app.
+3. **Open the menu** - Press `Ctrl + F1`.
+4. **Detect** - Click "Detect Board". Analysis begins as soon as it succeeds.
+5. **View results** - The "Real-Time Analysis" window shows the live board and Stockfish's best moves.
+6. **Adjust engine** - Depth and number of moves sit in the same window. The engine
+   runs at full strength unless "Limit engine strength" is ticked.
+
+If detection fails, open **Manual calibration** for the original corner-click
+flow, and **Advanced: sampling geometry** for the sliders.
 
 ## Project Structure
 
@@ -141,14 +136,14 @@ Launch from Visual Studio (`F5`) or run the compiled executable directly. Make s
 oracle/
 ├── Oracle/                        # Main source directory
 │   ├── main.cpp                   # Entry point, overlay window, render loop
+│   ├── BoardDetection.cpp/h       # Automatic board, colour and orientation search
 │   ├── ChessboardDetection.cpp/h  # Board scanning, FEN generation, piece matching
 │   ├── StockfishHandler.cpp/h     # UCI protocol, engine lifecycle
 │   ├── InitialConfiguration.cpp/h # Calibration: clicks, samples, crop, references
 │   ├── Menu.cpp/h                 # ImGui UI: settings, live preview, move display
 │   ├── Overlay.cpp/h              # Transparent fullscreen Win32 overlay
 │   ├── Direct3D.cpp/h             # D3D11 device, swap chain, render target
-│   ├── BoardStateManager.cpp/h    # Board change detection thread
-│   ├── Utils.cpp/h                # Screen capture, palette masking, unicode
+│   ├── Utils.cpp/h                # Screen capture, DPI setup, palette masking
 │   ├── FileHandler.cpp/h          # Reference piece image I/O
 │   ├── Globals.cpp/h              # Shared global state
 │   ├── Structs.h                  # CLICK and SAMPLE data structures
@@ -156,6 +151,8 @@ oracle/
 │   ├── stockfish/                 # Bundled Stockfish engine + sources
 │   ├── Oracle.sln                 # Visual Studio solution
 │   └── Oracle.vcxproj             # Visual Studio project
+├── tools/
+│   └── BoardDetectionCheck/       # Offline check for the board detector
 └── OpenCV/                        # OpenCV installation (not tracked in git)
 ```
 

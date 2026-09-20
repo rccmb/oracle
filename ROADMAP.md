@@ -23,6 +23,28 @@ Features and improvements that have already been implemented:
 | ✅ | Reference piece generation from starting position | v0.1 |
 | ✅ | Palette masking for improved detection on themed boards | v0.1 |
 | ✅ | Adjustable sample point and crop region parameters | v0.1 |
+| ✅ | Automatic board detection, no clicks or sliders | v0.2 |
+| ✅ | Square, piece and orientation detection from the board itself | v0.2 |
+| ✅ | Sampling geometry and tolerance derived from the detected cell size | v0.2 |
+| ✅ | Per-monitor DPI awareness and multi-monitor capture | v0.2 |
+| ✅ | Offline check for the board detector (`tools/BoardDetectionCheck`) | v0.2 |
+| ✅ | Board-only capture, with unchanged frames skipped | v0.2 |
+| ✅ | One lock over the state shared by the detection and render threads | v0.2 |
+| ✅ | Debug and Release both build from a clean clone | v0.2 |
+
+---
+
+## Next
+
+Ideas worth taking on, roughly in order of what they unlock:
+
+| Item | Why |
+|---|---|
+| Track the game, not the frame | Oracle re-reads all 64 squares every frame and has no model of chess, so castling rights, en passant and the halfmove clock are invented, side to move is guessed from a pixel diff, and one misread square silently produces a wrong FEN. Matching each frame against the legal moves from the previous position fixes all of these at once, and makes mid-animation frames reject themselves. |
+| Reference pieces per square colour | Templates are captured once, on whichever square colour a piece started on, so the same piece on the opposite shade matches worse. Twenty-four templates instead of twelve. |
+| Re-detect while running | The board is found once. Moving or resizing the window leaves the grid stale until the user presses Detect again. |
+| Replace template matching | A small classifier trained on the piece sets the major sites ship would drop the starting-position requirement and most remaining theme sensitivity. |
+| One reader for the engine pipe | Liveness checks and searches both read the same pipe, so one can consume the other's output. A single reader thread dispatching lines removes the whole class of problem. |
 
 ---
 
