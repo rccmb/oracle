@@ -407,8 +407,8 @@ void ShowMenu(int imageWidth, int imageHeight) {
 
         ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize;
 
-        ImU32 darkSquare = IM_COL32(5, 5, 5, 255);
-        ImU32 lightSquare = IM_COL32(25, 20, 20, 255);
+        ImU32 darkSquare = IM_COL32(28, 28, 32, 255);
+        ImU32 lightSquare = IM_COL32(52, 52, 58, 255);
 
         if (ImGui::Begin("Real-Time Analysis", nullptr, windowFlags)) {
             // One snapshot of what the detection thread has produced, taken before

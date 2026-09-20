@@ -56,9 +56,9 @@ void RenderFrame() {
         draw_list->AddRect(
             ImVec2((float)g_boardRect.left, (float)g_boardRect.top),
             ImVec2((float)g_boardRect.right, (float)g_boardRect.bottom),
-            IM_COL32(0, 255, 0, 255), 
-            0.0f, 
-            0,   
+            IM_COL32(64, 196, 148, 120),
+            0.0f,
+            0,
             1.0f 
         );
     }
@@ -113,9 +113,9 @@ void RenderFrame() {
         (g_boardRect.right - g_boardRect.left) > 0 && (g_boardRect.bottom - g_boardRect.top) > 0) {
 
         const ImU32 severity =
-            (moveVerdict == "Blunder")  ? IM_COL32(200, 45, 45, 235) :
-            (moveVerdict == "Mistake")  ? IM_COL32(205, 120, 30, 235) :
-                                          IM_COL32(190, 170, 40, 235);
+            (moveVerdict == "Blunder")  ? IM_COL32(214, 48, 49, 240) :
+            (moveVerdict == "Mistake")  ? IM_COL32(243, 156, 18, 240) :
+                                          IM_COL32(241, 196, 15, 240);
 
         char callout[96];
         std::snprintf(callout, sizeof(callout), "%s  %s  %s  -%.1f",
@@ -181,15 +181,35 @@ void RenderFrame() {
         // Colour carries the evaluation, the number carries the ranking. Scores
         // arrive from the moving side's point of view, and moves are only
         // requested on our own turn, so a positive score is good for us.
+        //
+        // A level score is slate, not the muddy yellow it used to be: a dark
+        // desaturated yellow over a wooden board is indistinguishable from the
+        // board, and looks like a stain rather than a reading.
         auto verdictColor = [](const StockfishMove& move) -> ImU32 {
             if (move.mate) {
-                return move.mateIn > 0 ? IM_COL32(150, 90, 240, 235)   // Mate for us.
-                                       : IM_COL32(200, 40, 40, 235);   // Mate against us.
+                return move.mateIn > 0 ? IM_COL32(138, 84, 222, 240)   // Mate for us.
+                                       : IM_COL32(198, 44, 44, 240);   // Mate against us.
             }
-            if (move.scoreCp > 50) return IM_COL32(40, 160, 70, 235);   // Winning.
-            if (move.scoreCp < -50) return IM_COL32(200, 60, 50, 235);  // Losing.
-            return IM_COL32(190, 150, 40, 235);                         // Level.
+            if (move.scoreCp > 50) return IM_COL32(38, 152, 70, 240);   // Winning.
+            if (move.scoreCp < -50) return IM_COL32(208, 56, 56, 240);  // Losing.
+            return IM_COL32(92, 106, 128, 240);                         // Level.
         };
+
+        // Both the badges and the ends of the arrows sit here, in the top left
+        // of a square. Pieces are drawn centred, so this corner is the emptiest
+        // part of a square, and anchoring both to the same point makes an arrow
+        // read as a line between two numbered markers rather than a separate
+        // decoration laid over the board.
+        const float anchorInset = (float)std::min(cellWidth, cellHeight) * 0.20f;
+        auto squareAnchor = [&](int index) {
+            const int row = index / 8;
+            const int col = index % 8;
+            return ImVec2(
+                (float)(g_boardRect.left + col * cellWidth) + anchorInset,
+                (float)(g_boardRect.top + row * cellHeight) + anchorInset);
+        };
+
+        const float badgeRadius = std::clamp((float)std::min(cellWidth, cellHeight) * 0.095f, 6.0f, 14.0f);
 
         for (size_t i = 0; i < bestMoves.size(); ++i) {
             const StockfishMove& move = bestMoves[i];
@@ -208,19 +228,6 @@ void RenderFrame() {
         if (g_showMoveArrows) {
             const float cellSide = (float)std::min(cellWidth, cellHeight);
 
-            auto squareCenter = [&](int index) {
-                const int row = index / 8;
-                const int col = index % 8;
-                return ImVec2(
-                    (float)(g_boardRect.left + col * cellWidth) + cellWidth * 0.5f,
-                    (float)(g_boardRect.top + row * cellHeight) + cellHeight * 0.5f);
-            };
-
-            auto withAlpha = [](ImU32 color, int alpha) {
-                return (color & ~IM_COL32_A_MASK) |
-                       ((ImU32)(alpha & 0xFF) << IM_COL32_A_SHIFT);
-            };
-
             // Drawn weakest first so the engine's first choice ends up on top of
             // the ones it likes less.
             for (int i = (int)bestMoves.size() - 1; i >= 0; --i) {
@@ -231,14 +238,16 @@ void RenderFrame() {
                 const int to = squareIndex(move.uci[2], move.uci[3]);
                 if (from < 0 || to < 0) continue;
 
-                // Rank shows in weight and in opacity, so the best move reads as
-                // the best move without having to find its number first.
-                const float thickness = std::max(1.5f, cellSide * (0.055f - 0.009f * i));
-                const int alpha = std::max(60, 195 - 40 * i);
-                const ImU32 color = withAlpha(verdictColor(move), alpha);
+                // Black, with rank carried by weight and opacity. Colouring the
+                // arrows as well as the badges said the same thing twice and put
+                // a second saturated colour across the board; one neutral line
+                // between two coloured markers reads more cleanly.
+                const float thickness = std::max(1.5f, cellSide * (0.050f - 0.008f * i));
+                const int alpha = std::max(70, 200 - 42 * i);
+                const ImU32 color = IM_COL32(12, 12, 14, alpha);
 
-                const ImVec2 start = squareCenter(from);
-                const ImVec2 end = squareCenter(to);
+                const ImVec2 start = squareAnchor(from);
+                const ImVec2 end = squareAnchor(to);
 
                 float dx = end.x - start.x;
                 float dy = end.y - start.y;
@@ -247,15 +256,15 @@ void RenderFrame() {
                 dx /= length;
                 dy /= length;
 
-                // Both ends are pulled in: away from the piece being moved so it
-                // stays visible, and short of the centre of the target so the
-                // head does not bury whatever is standing there.
-                const float tailInset = cellSide * 0.30f;
-                const float headLength = cellSide * 0.22f;
-                if (length <= tailInset + headLength) continue;
+                // The arrow runs between the two badges, stopping clear of both,
+                // so it never crosses the middle of a square where the pieces are.
+                const float clearBadge = badgeRadius + 3.0f;
+                const float headLength = cellSide * 0.18f;
+                if (length <= clearBadge * 2.0f + headLength) continue;
 
-                const ImVec2 shaftStart(start.x + dx * tailInset, start.y + dy * tailInset);
-                const ImVec2 shaftEnd(end.x - dx * headLength, end.y - dy * headLength);
+                const ImVec2 shaftStart(start.x + dx * clearBadge, start.y + dy * clearBadge);
+                const ImVec2 tip(end.x - dx * clearBadge, end.y - dy * clearBadge);
+                const ImVec2 shaftEnd(tip.x - dx * headLength, tip.y - dy * headLength);
 
                 // Rounded tail. AddLine has square ends, which read as ragged at
                 // these weights; a disc the width of the shaft closes it off.
@@ -263,9 +272,9 @@ void RenderFrame() {
                 draw_list->AddLine(shaftStart, shaftEnd, color, thickness);
 
                 // Arrowhead, built on the perpendicular at the end of the shaft.
-                const float halfWidth = headLength * 0.46f;
+                const float halfWidth = headLength * 0.44f;
                 draw_list->AddTriangleFilled(
-                    end,
+                    tip,
                     ImVec2(shaftEnd.x - dy * halfWidth, shaftEnd.y + dx * halfWidth),
                     ImVec2(shaftEnd.x + dy * halfWidth, shaftEnd.y - dx * halfWidth),
                     color);
@@ -275,36 +284,30 @@ void RenderFrame() {
         // Small discs rather than labels. A rank is one character, so a circle
         // sized to that character is the least ink that can carry it, and it
         // stays legible over a piece without covering one.
-        const float baseRadius = std::clamp((float)std::min(cellWidth, cellHeight) * 0.095f, 6.0f, 14.0f);
-
         for (const auto& entry : badgesBySquare) {
-            const int row = entry.first / 8;
-            const int col = entry.first % 8;
             const std::vector<Badge>& badges = entry.second;
             const int count = (int)badges.size();
             if (count == 0) continue;
 
             // Shrink the row to fit rather than letting it spill onto the
             // neighbouring squares. Several moves touching one square is common.
-            float radius = baseRadius;
+            float radius = badgeRadius;
             float gap = radius * 0.35f;
             float rowWidth = count * radius * 2.0f + (count - 1) * gap;
 
-            const float available = (float)cellWidth * 0.90f;
-            if (rowWidth > available) {
+            // Anchored in the top left corner, so the row runs from there rather
+            // than across the middle of the square.
+            const ImVec2 anchor = squareAnchor(entry.first);
+            const float available = (float)cellWidth - anchorInset - radius;
+            if (rowWidth > available && rowWidth > 0.0f) {
                 radius *= available / rowWidth;
                 gap = radius * 0.35f;
                 rowWidth = count * radius * 2.0f + (count - 1) * gap;
             }
 
             const float fontSize = radius * 1.30f;
-
-            // Sat near the top of the square, which leaves the piece itself
-            // visible underneath.
-            const float squareLeft = (float)(g_boardRect.left + col * cellWidth);
-            const float squareTop = (float)(g_boardRect.top + row * cellHeight);
-            const float centerY = squareTop + (float)cellHeight * 0.12f + radius;
-            float centerX = squareLeft + ((float)cellWidth - rowWidth) * 0.5f + radius;
+            const float centerY = anchor.y;
+            float centerX = anchor.x;
 
             for (const Badge& badge : badges) {
                 const ImVec2 center(centerX, centerY);

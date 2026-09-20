@@ -25,6 +25,10 @@ extern RECT g_boardRect;
 // the same space. Screen coordinates from GetCursorPos are offset by .left/.top.
 extern RECT g_virtualScreen;
 
+// Whether the overlay is hidden from screen capture. When it is not, Oracle can
+// see its own drawing and read it as part of the board.
+extern bool g_overlayHiddenFromCapture;
+
 extern std::vector<SAMPLE> g_debugSamples;
 extern std::vector<SAMPLE> g_cropRects;
 

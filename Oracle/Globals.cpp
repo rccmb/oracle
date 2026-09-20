@@ -2,6 +2,7 @@
 
 RECT g_boardRect = { 0, 0, 0, 0 };
 RECT g_virtualScreen = { 0, 0, 0, 0 };
+bool g_overlayHiddenFromCapture = false;
 
 std::vector<SAMPLE> g_debugSamples = {};
 std::vector<SAMPLE> g_cropRects = {};
