@@ -22,59 +22,117 @@ double CompareEdges(const cv::Mat& a, const cv::Mat& b) {
 }
 
 std::string BoardToFEN() {
-    std::ostringstream fen;
+    if (g_boardGridRows.size() != 8) return std::string();
 
-    if (g_boardGridRows.size() != 8) {
-        return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-    }
-
-    bool hasWhiteKing = false;
-    bool hasBlackKing = false;
-
+    // Re-order the detected grid into FEN order first: rank 8 at index 0 down to
+    // rank 1 at index 7, files a to h. Castling rights and the legality checks
+    // below all need to name actual squares, which the raw grid cannot do
+    // because its orientation depends on which way round the board is drawn.
+    char squares[8][8];
     for (int fenRank = 0; fenRank < 8; ++fenRank) {
-        int rowIndex = (g_orientation == 0) ? fenRank : (7 - fenRank);
-        int emptyCount = 0;
+        const int rowIndex = (g_orientation == 0) ? fenRank : (7 - fenRank);
         for (int file = 0; file < 8; ++file) {
-            int colIndex = (g_orientation == 0) ? file : (7 - file);
+            const int colIndex = (g_orientation == 0) ? file : (7 - file);
             char piece = ' ';
             if (rowIndex >= 0 && rowIndex < (int)g_boardGridRows.size() &&
                 colIndex >= 0 && colIndex < (int)g_boardGridRows[rowIndex].size()) {
                 piece = g_boardGridRows[rowIndex][colIndex];
             }
-            if (piece == ' ' || piece == '\0') {
-                ++emptyCount;
+            squares[fenRank][file] = (piece == '\0') ? ' ' : piece;
+        }
+    }
+
+    auto at = [&](int rank, int file) { return squares[rank][file]; };
+
+    // Rank 8 is index 0, rank 1 is index 7.
+    const int kRank8 = 0;
+    const int kRank1 = 7;
+
+    int whiteKings = 0, blackKings = 0;
+    int whitePieces = 0, blackPieces = 0;
+    int whitePawns = 0, blackPawns = 0;
+    int whiteKingRank = -1, whiteKingFile = -1;
+    int blackKingRank = -1, blackKingFile = -1;
+
+    for (int rank = 0; rank < 8; ++rank) {
+        for (int file = 0; file < 8; ++file) {
+            const char piece = at(rank, file);
+            if (piece == ' ') continue;
+
+            // A pawn cannot stand on the first or last rank; it would have
+            // promoted. Seeing one means a square was misread.
+            if ((piece == 'P' || piece == 'p') && (rank == kRank8 || rank == kRank1)) {
+                return std::string();
+            }
+
+            if (piece >= 'A' && piece <= 'Z') {
+                ++whitePieces;
+                if (piece == 'P') ++whitePawns;
+                if (piece == 'K') { ++whiteKings; whiteKingRank = rank; whiteKingFile = file; }
             }
             else {
-                if (emptyCount > 0) { fen << emptyCount; emptyCount = 0; }
-                fen << piece;
-
-                if (piece == 'K') hasWhiteKing = true;
-                else if (piece == 'k') hasBlackKing = true;
+                ++blackPieces;
+                if (piece == 'p') ++blackPawns;
+                if (piece == 'k') { ++blackKings; blackKingRank = rank; blackKingFile = file; }
             }
         }
+    }
 
+    // Exactly one king each, and no more material than a side can hold.
+    if (whiteKings != 1 || blackKings != 1) return std::string();
+    if (whitePieces > 16 || blackPieces > 16) return std::string();
+    if (whitePawns > 8 || blackPawns > 8) return std::string();
+
+    // Kings cannot stand next to each other. Cheap, and a reliable sign that a
+    // square was read wrong.
+    if (std::abs(whiteKingRank - blackKingRank) <= 1 &&
+        std::abs(whiteKingFile - blackKingFile) <= 1) {
+        return std::string();
+    }
+
+    std::ostringstream fen;
+    for (int rank = 0; rank < 8; ++rank) {
+        int emptyCount = 0;
+        for (int file = 0; file < 8; ++file) {
+            const char piece = at(rank, file);
+            if (piece == ' ') {
+                ++emptyCount;
+                continue;
+            }
+            if (emptyCount > 0) { fen << emptyCount; emptyCount = 0; }
+            fen << piece;
+        }
         if (emptyCount > 0) fen << emptyCount;
-        if (fenRank < 7) fen << '/';
+        if (rank < 7) fen << '/';
     }
 
-    if (!hasWhiteKing || !hasBlackKing) {
-        return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    fen << ' ' << g_sideToMove << ' ';
+
+    // Castling rights are read off the board rather than assumed. Oracle used to
+    // write "KQkq" unconditionally, which crashes Stockfish outright: claiming a
+    // right for a king that is not on its home square segfaults the engine, and
+    // so does claiming rights for a side with no rooks left. A king leaves e1 or
+    // e8 in most games well before mate, which is why the engine tended to die
+    // around the end of one.
+    //
+    // This over-grants in one case, a king that moved and came back, and that is
+    // the safe direction: Stockfish discards a right it cannot use.
+    std::string castling;
+    if (at(kRank1, 4) == 'K') {
+        if (at(kRank1, 7) == 'R') castling += 'K';
+        if (at(kRank1, 0) == 'R') castling += 'Q';
     }
+    if (at(kRank8, 4) == 'k') {
+        if (at(kRank8, 7) == 'r') castling += 'k';
+        if (at(kRank8, 0) == 'r') castling += 'q';
+    }
+    fen << (castling.empty() ? "-" : castling);
 
-    fen << ' ' << g_sideToMove;
-
-    fen << " KQkq";
-
-    fen << " -";
-
-    fen << " 0 1";
+    // En passant and the halfmove clock are not recoverable from one frame.
+    fen << " - 0 1";
 
     std::string result = fen.str();
-
-    int slashCount = (int)std::count(result.begin(), result.end(), '/');
-    if (slashCount != 7) {
-        return "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-    }
+    if ((int)std::count(result.begin(), result.end(), '/') != 7) return std::string();
 
 	// All validations passes, update last valid FEN.
     {
@@ -335,9 +393,13 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
             }
 
             if (StockfishIsAlive()) {
+                // An empty FEN means the frame did not read as a legal position.
+                // Previously this returned the starting position instead, so a
+                // single misread square made Oracle confidently recommend 1.e4
+                // in the middlegame. Holding the last good result is honest.
                 std::string fen = BoardToFEN();
                 static std::string lastQueriedFen;
-                if (fen != lastQueriedFen) {
+                if (!fen.empty() && fen != lastQueriedFen) {
                     // The engine call blocks, so it runs outside the lock and only
                     // its result is published.
                     std::vector<StockfishMove> moves =

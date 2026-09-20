@@ -1062,3 +1062,10 @@ tools/BoardDetectionCheck/*.dll
 tools/BoardDetectionCheck/*.pdb
 tools/BoardDetectionCheck/*.ilk
 tools/BoardDetectionCheck/corpus/
+
+# Oracle: FEN check tool build output
+tools/FenCheck/*.exe
+tools/FenCheck/*.obj
+tools/FenCheck/*.dll
+tools/FenCheck/*.pdb
+tools/FenCheck/*.ilk

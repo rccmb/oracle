@@ -1,5 +1,7 @@
 #include "StockfishHandler.h"
 
+#include <map>
+
 HANDLE g_sfInput = nullptr;
 HANDLE g_sfOutput = nullptr;
 std::mutex g_sfMutex;
@@ -21,8 +23,17 @@ static PROCESS_INFORMATION g_sfProcInfo = { 0 };
 static HANDLE g_sfThread = nullptr;
 static bool g_sfStopThread = false;
 
+// Where the engine was launched from, so it can be started again if it dies.
+static std::string g_sfPath = "stockfish/stockfish.exe";
+
 // How long a liveness answer stays good for before the engine is probed again.
 static constexpr DWORD kLivenessProbeIntervalMs = 2000;
+
+// Minimum gap between restart attempts, so an engine that cannot start is not
+// spawned in a tight loop.
+static constexpr DWORD kRestartBackoffMs = 3000;
+
+bool g_sfNoLegalMoves = false;
 
 // TODO: Documentation.
 static void SendCommand(const std::string& cmd) {
@@ -31,18 +42,24 @@ static void SendCommand(const std::string& cmd) {
     WriteFile(g_sfInput, cmd.c_str(), (DWORD)cmd.size(), &written, nullptr);
 }
 
-// TODO: Documentation.
-static void ParseInfoLine(const std::string& line, StockfishMove* mv) {
-    if (line.find(" pv ") == std::string::npos) return;
+// Pulls the score, the engine's ranking and the first move of the principal
+// variation out of one "info" line. Returns false if the line carries no move.
+static bool ParseInfoLine(const std::string& line, StockfishMove* mv) {
+    if (line.find(" pv ") == std::string::npos) return false;
 
     mv->mate = false;
     mv->scoreCp = 0;
     mv->mateIn = 0;
+    mv->multipv = 1; // Stockfish omits it when MultiPV is 1.
+    mv->uci.clear();
 
     std::istringstream iss(line);
     std::string token;
     while (iss >> token) {
-        if (token == "score") {
+        if (token == "multipv") {
+            iss >> mv->multipv;
+        }
+        else if (token == "score") {
             iss >> token;
             if (token == "cp") {
                 iss >> mv->scoreCp;
@@ -57,9 +74,24 @@ static void ParseInfoLine(const std::string& line, StockfishMove* mv) {
             break;
         }
     }
+
+    return !mv->uci.empty();
 }
 
-void LaunchStockfish(const std::string& path = "stockfish/stockfish.exe") {
+// Releases the handles of an engine that has gone away, so a relaunch starts
+// from a clean slate rather than writing into a broken pipe.
+static void ReleaseStockfishHandles() {
+    if (g_sfInput) { CloseHandle(g_sfInput); g_sfInput = nullptr; }
+    if (g_sfOutput) { CloseHandle(g_sfOutput); g_sfOutput = nullptr; }
+    if (g_sfProcInfo.hProcess) { CloseHandle(g_sfProcInfo.hProcess); g_sfProcInfo.hProcess = nullptr; }
+    if (g_sfProcInfo.hThread) { CloseHandle(g_sfProcInfo.hThread); g_sfProcInfo.hThread = nullptr; }
+    g_sfRunning = false;
+}
+
+void LaunchStockfish(const std::string& path) {
+    ReleaseStockfishHandles();
+    g_sfPath = path;
+
     SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
     HANDLE hStdOutRead = nullptr, hStdOutWrite = nullptr;
     HANDLE hStdInRead = nullptr, hStdInWrite = nullptr;
@@ -93,23 +125,46 @@ void LaunchStockfish(const std::string& path = "stockfish/stockfish.exe") {
 }
 
 bool StockfishIsAlive() {
-    if (!g_sfRunning) return false;
-
     // Both the render loop and the detection loop ask this every pass, which was
     // an isready and a blocking read of up to half a second each time, on the
     // same pipe and mutex the search uses. The engine's liveness does not change
     // at that rate, so the answer is cached between probes.
     static DWORD lastProbeTick = 0;
+    static DWORD lastRestartTick = 0;
     static bool lastResult = false;
+
+    std::lock_guard<std::mutex> lock(g_sfMutex);
 
     const DWORD now = GetTickCount();
     if (lastProbeTick != 0 && (now - lastProbeTick) < kLivenessProbeIntervalMs) {
         return lastResult;
     }
     lastProbeTick = now;
-    lastResult = false;
 
-    std::lock_guard<std::mutex> lock(g_sfMutex);
+    // A crashed engine leaves a signalled process handle behind. Noticing that
+    // is what makes a restart possible: until this existed, one bad position
+    // took the engine down for the rest of the session and every later command
+    // was written into a pipe with nothing on the other end.
+    if (g_sfRunning && g_sfProcInfo.hProcess &&
+        WaitForSingleObject(g_sfProcInfo.hProcess, 0) == WAIT_OBJECT_0) {
+        std::cerr << "[WARN] Stockfish exited; restarting.\n";
+        ReleaseStockfishHandles();
+    }
+
+    if (!g_sfRunning) {
+        lastResult = false;
+        if (lastRestartTick != 0 && (now - lastRestartTick) < kRestartBackoffMs) {
+            return false;
+        }
+        lastRestartTick = now;
+
+        // LaunchStockfish does not take the mutex, so calling it here is safe.
+        LaunchStockfish(g_sfPath);
+        g_sfPreviousMoves.clear();
+        if (!g_sfRunning) return false;
+    }
+
+    lastResult = false;
     SendCommand("isready\n");
 
     std::string response;
@@ -138,6 +193,8 @@ std::vector<StockfishMove> GetBestMoves(const std::string& fen, int elo, int top
     std::vector<StockfishMove> moves;
     if (!g_sfRunning || (g_sfPlayWhite && g_sideToMove == 'b') || (!g_sfPlayWhite && g_sideToMove == 'w')) return g_sfPreviousMoves;
 
+    g_sfNoLegalMoves = false;
+
     std::lock_guard<std::mutex> lock(g_sfMutex);
     SendCommand("setoption name UCI_LimitStrength value " +
         std::string(g_sfLimitStrength ? "true" : "false") + "\n");
@@ -154,9 +211,17 @@ std::vector<StockfishMove> GetBestMoves(const std::string& fen, int elo, int top
     // lines belonging to the search that followed.
     SendCommand("go depth " + std::to_string(depth) + "\n");
 
+    // Keyed by the engine's own MultiPV index, so later and deeper lines replace
+    // earlier ones and the final set comes out in ranked order. Matching on
+    // "info depth N" instead, as this used to, produced nothing at all whenever
+    // the search stopped short of the requested depth, which is exactly what it
+    // does when it finds a forced mate.
+    std::map<int, StockfishMove> byRank;
+
     char buffer[512];
     DWORD bytesRead = 0;
     std::string response;
+    size_t consumed = 0;
 
     DWORD startTick = GetTickCount();
     while (GetTickCount() - startTick < 5000) {
@@ -164,22 +229,27 @@ std::vector<StockfishMove> GetBestMoves(const std::string& fen, int elo, int top
             buffer[bytesRead] = '\0';
             response += buffer;
 
-            std::istringstream iss(response);
-            std::string line;
-            while (std::getline(iss, line)) {
-                if (line.find("info depth " + std::to_string(depth)) != std::string::npos && line.find(" pv ") != std::string::npos) {
-                    StockfishMove parsed;
-                    ParseInfoLine(line, &parsed);
+            // Only walk what has arrived since the last pass. The old code
+            // re-parsed the whole accumulated response on every read.
+            size_t newline;
+            while ((newline = response.find('\n', consumed)) != std::string::npos) {
+                std::string line = response.substr(consumed, newline - consumed);
+                consumed = newline + 1;
+                if (!line.empty() && line.back() == '\r') line.pop_back();
 
-                    auto it = std::find_if(moves.begin(), moves.end(), [&](const StockfishMove& m) { return m.uci == parsed.uci; });
-                    if (it == moves.end()) {
-                        moves.push_back(parsed);
-                    }
-                    else {
-                        *it = parsed;
-                    }
+                if (line.rfind("info", 0) == 0) {
+                    StockfishMove parsed;
+                    if (ParseInfoLine(line, &parsed)) byRank[parsed.multipv] = parsed;
+                    continue;
                 }
-                if (line.find("bestmove") != std::string::npos) {
+
+                if (line.rfind("bestmove", 0) == 0) {
+                    // "bestmove (none)" is checkmate or stalemate: a legal
+                    // position with nothing to play. Not a failure, and worth
+                    // saying so rather than showing an empty list.
+                    g_sfNoLegalMoves = (line.find("(none)") != std::string::npos);
+
+                    for (const auto& entry : byRank) moves.push_back(entry.second);
                     g_sfPreviousMoves = moves;
                     return moves;
                 }
@@ -190,6 +260,7 @@ std::vector<StockfishMove> GetBestMoves(const std::string& fen, int elo, int top
         }
     }
 
+    for (const auto& entry : byRank) moves.push_back(entry.second);
     g_sfPreviousMoves = moves;
     return moves;
 }

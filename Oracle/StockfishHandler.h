@@ -18,6 +18,10 @@ extern bool g_sfRunning;
 extern int g_sfElo;
 extern bool g_sfPlayWhite;
 extern bool g_sfLimitStrength;
+
+// True when the last analysed position was checkmate or stalemate: legal, but
+// with no move to make.
+extern bool g_sfNoLegalMoves;
 extern int g_sfMoveDepth;
 extern int g_sfNumberMoves;
 

@@ -30,10 +30,15 @@ struct SAMPLE {
     int height;
 };
 
-// TODO: Documentation.
+// One candidate move from the engine.
+//
+// Scores follow the UCI convention: positive is good for the side to move, not
+// for white. Anything displaying them from white's point of view has to flip the
+// sign when black is on move.
 struct StockfishMove {
-    std::string uci;   // Move in UCI format.
-    int scoreCp;       // Score in centipawns.
-    bool mate;         // True if this is a mate score.
-    int mateIn;        // Number of moves to mate.
+    std::string uci;    // Move in UCI format.
+    int scoreCp = 0;    // Score in centipawns, from the moving side's view.
+    bool mate = false;  // True if this is a mate score.
+    int mateIn = 0;     // Number of moves to mate.
+    int multipv = 1;    // Engine's own ranking, 1 being its first choice.
 };
