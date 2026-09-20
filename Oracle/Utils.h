@@ -20,6 +20,17 @@
 void InitializeDisplayMetrics();
 
 /**
+ * @brief Directory the running executable sits in.
+ *
+ * Everything Oracle loads or writes is anchored here rather than to the working
+ * directory, which differs between launching from a debugger, from a shortcut
+ * and from a shell, and is not something a user should have to think about.
+ *
+ * @return Absolute path, or an empty path if it could not be determined.
+ */
+std::filesystem::path ExecutableDirectory();
+
+/**
  * @brief Captures a rectangle of the desktop in physical pixels.
  *
  * @param x,y     Top-left corner in screen coordinates. May be negative on a

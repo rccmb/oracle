@@ -23,6 +23,12 @@ void InitializeDisplayMetrics() {
     g_virtualScreen.bottom = g_virtualScreen.top + GetSystemMetrics(SM_CYVIRTUALSCREEN);
 }
 
+std::filesystem::path ExecutableDirectory() {
+    wchar_t moduleName[MAX_PATH] = {};
+    if (!GetModuleFileNameW(nullptr, moduleName, MAX_PATH)) return {};
+    return std::filesystem::path(moduleName).parent_path();
+}
+
 cv::Mat CaptureScreenRegion(int x, int y, int width, int height) {
     if (width <= 0 || height <= 0) return {};
 

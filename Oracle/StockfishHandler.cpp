@@ -92,6 +92,47 @@ static int ParseDepth(const std::string& line) {
     return 0;
 }
 
+// Finds the engine relative to Oracle rather than to the working directory.
+//
+// A bare "stockfish/stockfish.exe" is resolved against whatever directory the
+// process happens to have been started in, which is why the README had to warn
+// about it. Searching outward from the executable instead means the engine is
+// found when Oracle is launched from a debugger, from a shortcut, from a shell
+// in another directory, or unpacked beside its own binary.
+static std::string ResolveEnginePath(const std::string& requested) {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+
+    const fs::path asked(requested);
+    if (asked.is_absolute()) return requested;
+    if (fs::exists(asked, ec)) return requested;
+
+    wchar_t moduleName[MAX_PATH] = {};
+    if (!GetModuleFileNameW(nullptr, moduleName, MAX_PATH)) return requested;
+
+    // Walk up from the executable. Five levels covers a build sitting in
+    // x64\<config>\ as well as the engine unpacked next to a released binary.
+    fs::path directory = fs::path(moduleName).parent_path();
+    for (int level = 0; level < 5; ++level) {
+        const fs::path candidates[] = {
+            directory / "stockfish" / "stockfish.exe",
+            directory / "third_party" / "stockfish" / "stockfish.exe",
+        };
+
+        for (const fs::path& candidate : candidates) {
+            if (fs::exists(candidate, ec)) {
+                const fs::path resolved = fs::weakly_canonical(candidate, ec);
+                return ec ? candidate.string() : resolved.string();
+            }
+        }
+
+        if (!directory.has_parent_path() || directory.parent_path() == directory) break;
+        directory = directory.parent_path();
+    }
+
+    return requested;
+}
+
 // Releases the handles of an engine that has gone away, so a relaunch starts
 // from a clean slate rather than writing into a broken pipe.
 static void ReleaseStockfishHandles() {
@@ -104,7 +145,10 @@ static void ReleaseStockfishHandles() {
 
 void LaunchStockfish(const std::string& path) {
     ReleaseStockfishHandles();
-    g_sfPath = path;
+
+    // Resolved once and remembered, so a restart after a crash uses the path
+    // that was actually found rather than searching again.
+    g_sfPath = ResolveEnginePath(path);
 
     SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
     HANDLE hStdOutRead = nullptr, hStdOutWrite = nullptr;
@@ -122,9 +166,9 @@ void LaunchStockfish(const std::string& path) {
     si.hStdError = hStdOutWrite;
     si.hStdInput = hStdInRead;
 
-    if (!CreateProcessA(path.c_str(), nullptr, nullptr, nullptr, TRUE,
+    if (!CreateProcessA(g_sfPath.c_str(), nullptr, nullptr, nullptr, TRUE,
         CREATE_NO_WINDOW, nullptr, nullptr, &si, &g_sfProcInfo)) {
-        std::cerr << "[ERROR] Failed to launch Stockfish.\n";
+        std::cerr << "[ERROR] Failed to launch Stockfish from " << g_sfPath << "\n";
         return;
     }
 

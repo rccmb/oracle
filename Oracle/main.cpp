@@ -383,6 +383,13 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
     // captured pixels disagree and calibration clicks land on the wrong square.
     InitializeDisplayMetrics();
 
+    // Reference pieces live beside the executable, not in whatever directory
+    // Oracle happened to be started from. Otherwise a board detected while
+    // debugging leaves its references somewhere the released binary cannot find.
+    if (const std::filesystem::path exeDir = ExecutableDirectory(); !exeDir.empty()) {
+        g_tempDir = exeDir / "temp";
+    }
+
 	// Creating overlay.
     HINSTANCE hInstance = GetModuleHandle(NULL);
     const LPCWSTR className = L"Oracle Overlay";
