@@ -1,5 +1,6 @@
 #include "Menu.h"
 
+#include <cmath>
 #include <cstdio>
 
 ImFont* CHESSBOARD_FONT;
@@ -453,8 +454,97 @@ void ShowMenu(int imageWidth, int imageHeight) {
             }
 
             ImGui::Separator();
-            // TODO: Implement board evaluation.
 
+            /* EVALUATION BAR. */
+            {
+                // Engine scores arrive from the point of view of whoever is to
+                // move, and moves are only requested on our own turn, so the
+                // score belongs to the side Oracle is playing. A bar reads by
+                // convention from white's side, hence the flip.
+                bool haveEval = false;
+                bool evalIsMate = false;
+                int evalMateIn = 0;
+                int evalCp = 0;
+
+                if (!bestMoves.empty()) {
+                    const StockfishMove& top = bestMoves.front();
+                    haveEval = true;
+                    evalIsMate = top.mate;
+                    evalMateIn = g_sfPlayWhite ? top.mateIn : -top.mateIn;
+                    evalCp = g_sfPlayWhite ? top.scoreCp : -top.scoreCp;
+                }
+
+                // Centipawns are unbounded, so a linear bar would sit pinned at
+                // one end for most of a game. This is the usual logistic mapping
+                // from score to expected result, which keeps the interesting
+                // range legible and saturates gracefully.
+                float whiteShare = 0.5f;
+                if (haveEval) {
+                    if (evalIsMate) {
+                        whiteShare = (evalMateIn > 0) ? 1.0f : 0.0f;
+                    }
+                    else {
+                        const float chances = 2.0f / (1.0f + std::exp(-0.004f * (float)evalCp)) - 1.0f;
+                        whiteShare = std::clamp(0.5f + 0.5f * chances, 0.02f, 0.98f);
+                    }
+                }
+
+                char readout[32];
+                if (!haveEval) {
+                    std::snprintf(readout, sizeof(readout), "--");
+                }
+                else if (evalIsMate) {
+                    std::snprintf(readout, sizeof(readout), "M%d", std::abs(evalMateIn));
+                }
+                else {
+                    std::snprintf(readout, sizeof(readout), "%+.2f", evalCp / 100.0f);
+                }
+
+                ImGui::Text("Evaluation");
+
+                const float barWidth = ImGui::GetContentRegionAvail().x;
+                const float barHeight = ImGui::GetTextLineHeightWithSpacing() * 1.3f;
+                const ImVec2 origin = ImGui::GetCursorScreenPos();
+                ImDrawList* bar = ImGui::GetWindowDrawList();
+
+                const ImVec2 barMin = origin;
+                const ImVec2 barMax = ImVec2(origin.x + barWidth, origin.y + barHeight);
+                const float split = origin.x + barWidth * whiteShare;
+
+                // Black holds the whole bar, white claims its share from the left.
+                bar->AddRectFilled(barMin, barMax, IM_COL32(38, 38, 42, 255));
+                bar->AddRectFilled(barMin, ImVec2(split, barMax.y), IM_COL32(232, 232, 228, 255));
+
+                // Halfway marker, so a small edge is still visible as an edge.
+                const float middle = origin.x + barWidth * 0.5f;
+                bar->AddLine(ImVec2(middle, barMin.y), ImVec2(middle, barMax.y),
+                    IM_COL32(128, 128, 132, 180));
+                bar->AddRect(barMin, barMax, IM_COL32(90, 90, 95, 255));
+
+                // The readout sits on whichever side is losing, where there is
+                // room for it, and takes that side's contrasting colour.
+                const ImVec2 textSize = ImGui::CalcTextSize(readout);
+                const bool whiteFavoured = whiteShare >= 0.5f;
+                const float textY = origin.y + (barHeight - textSize.y) * 0.5f;
+                const float textX = whiteFavoured
+                    ? barMax.x - textSize.x - 6.0f
+                    : barMin.x + 6.0f;
+                bar->AddText(ImVec2(textX, textY),
+                    whiteFavoured ? IM_COL32(235, 235, 235, 255) : IM_COL32(25, 25, 28, 255),
+                    readout);
+
+                ImGui::Dummy(ImVec2(barWidth, barHeight));
+
+                if (g_sfNoLegalMoves) {
+                    ImGui::TextColored(ImVec4(1, 0.65f, 0.2f, 1),
+                        "No legal moves: checkmate or stalemate.");
+                }
+                else if (haveEval) {
+                    ImGui::TextDisabled("%s", whiteFavoured ? "White is better" : "Black is better");
+                }
+            }
+
+            ImGui::Separator();
             ImGui::Text("Real-Time Board");
 
             ImGuiTableFlags tableFlags = ImGuiTableFlags_Borders
