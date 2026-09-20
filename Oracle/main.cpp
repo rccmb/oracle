@@ -158,8 +158,11 @@ void RenderFrame() {
         // move can be read off the board without consulting the menu.
         struct Badge {
             std::string text;
-            ImU32 fill;
-            bool destination;
+            ImU32 fill = 0;
+            bool destination = false;
+            int moveIndex = 0;    // Which suggestion this badge belongs to.
+            ImVec2 center{};      // Filled in by the layout pass below.
+            float radius = 0.0f;  // Filled in by the layout pass below.
         };
 
         // Gathered per square before anything is drawn. Several moves commonly
@@ -220,72 +223,26 @@ void RenderFrame() {
 
             const int from = squareIndex(move.uci[0], move.uci[1]);
             const int to = squareIndex(move.uci[2], move.uci[3]);
-            if (from >= 0) badgesBySquare[from].push_back({ label, color, false });
-            if (to >= 0) badgesBySquare[to].push_back({ label, color, true });
+            if (from >= 0) badgesBySquare[from].push_back({ label, color, false, (int)i });
+            if (to >= 0) badgesBySquare[to].push_back({ label, color, true, (int)i });
         }
 
-        /* ARROWS. */
-        if (g_showMoveArrows) {
-            const float cellSide = (float)std::min(cellWidth, cellHeight);
+        /* BADGE LAYOUT. */
+        // Worked out before anything is drawn, because an arrow has to start and
+        // end on the badge that belongs to it. A piece with two suggestions puts
+        // two badges in a row on the square it stands on, and an arrow anchored
+        // to the square rather than to its own badge leaves from underneath the
+        // wrong number.
+        struct Endpoint {
+            bool set = false;
+            ImVec2 center{};
+            float radius = 0.0f;
+        };
+        std::vector<Endpoint> sourceOf(bestMoves.size());
+        std::vector<Endpoint> targetOf(bestMoves.size());
 
-            // Drawn weakest first so the engine's first choice ends up on top of
-            // the ones it likes less.
-            for (int i = (int)bestMoves.size() - 1; i >= 0; --i) {
-                const StockfishMove& move = bestMoves[i];
-                if (move.uci.length() < 4) continue;
-
-                const int from = squareIndex(move.uci[0], move.uci[1]);
-                const int to = squareIndex(move.uci[2], move.uci[3]);
-                if (from < 0 || to < 0) continue;
-
-                // Black, with rank carried by weight and opacity. Colouring the
-                // arrows as well as the badges said the same thing twice and put
-                // a second saturated colour across the board; one neutral line
-                // between two coloured markers reads more cleanly.
-                const float thickness = std::max(1.5f, cellSide * (0.050f - 0.008f * i));
-                const int alpha = std::max(70, 200 - 42 * i);
-                const ImU32 color = IM_COL32(12, 12, 14, alpha);
-
-                const ImVec2 start = squareAnchor(from);
-                const ImVec2 end = squareAnchor(to);
-
-                float dx = end.x - start.x;
-                float dy = end.y - start.y;
-                const float length = std::sqrt(dx * dx + dy * dy);
-                if (length < 1.0f) continue;
-                dx /= length;
-                dy /= length;
-
-                // The arrow runs between the two badges, stopping clear of both,
-                // so it never crosses the middle of a square where the pieces are.
-                const float clearBadge = badgeRadius + 3.0f;
-                const float headLength = cellSide * 0.18f;
-                if (length <= clearBadge * 2.0f + headLength) continue;
-
-                const ImVec2 shaftStart(start.x + dx * clearBadge, start.y + dy * clearBadge);
-                const ImVec2 tip(end.x - dx * clearBadge, end.y - dy * clearBadge);
-                const ImVec2 shaftEnd(tip.x - dx * headLength, tip.y - dy * headLength);
-
-                // Rounded tail. AddLine has square ends, which read as ragged at
-                // these weights; a disc the width of the shaft closes it off.
-                draw_list->AddCircleFilled(shaftStart, thickness * 0.5f, color, 12);
-                draw_list->AddLine(shaftStart, shaftEnd, color, thickness);
-
-                // Arrowhead, built on the perpendicular at the end of the shaft.
-                const float halfWidth = headLength * 0.44f;
-                draw_list->AddTriangleFilled(
-                    tip,
-                    ImVec2(shaftEnd.x - dy * halfWidth, shaftEnd.y + dx * halfWidth),
-                    ImVec2(shaftEnd.x + dy * halfWidth, shaftEnd.y - dx * halfWidth),
-                    color);
-            }
-        }
-
-        // Small discs rather than labels. A rank is one character, so a circle
-        // sized to that character is the least ink that can carry it, and it
-        // stays legible over a piece without covering one.
-        for (const auto& entry : badgesBySquare) {
-            const std::vector<Badge>& badges = entry.second;
+        for (auto& entry : badgesBySquare) {
+            std::vector<Badge>& badges = entry.second;
             const int count = (int)badges.size();
             if (count == 0) continue;
 
@@ -305,31 +262,103 @@ void RenderFrame() {
                 rowWidth = count * radius * 2.0f + (count - 1) * gap;
             }
 
-            const float fontSize = radius * 1.30f;
-            const float centerY = anchor.y;
             float centerX = anchor.x;
+            for (Badge& badge : badges) {
+                badge.radius = radius;
+                badge.center = ImVec2(centerX, anchor.y);
 
-            for (const Badge& badge : badges) {
-                const ImVec2 center(centerX, centerY);
+                Endpoint& endpoint = badge.destination ? targetOf[badge.moveIndex]
+                                                       : sourceOf[badge.moveIndex];
+                endpoint.set = true;
+                endpoint.center = badge.center;
+                endpoint.radius = radius;
+
+                centerX += radius * 2.0f + gap;
+            }
+        }
+
+        /* ARROWS. */
+        if (g_showMoveArrows) {
+            const float cellSide = (float)std::min(cellWidth, cellHeight);
+
+            // Drawn weakest first so the engine's first choice ends up on top of
+            // the ones it likes less.
+            for (int i = (int)bestMoves.size() - 1; i >= 0; --i) {
+                const Endpoint& tail = sourceOf[i];
+                const Endpoint& head = targetOf[i];
+                if (!tail.set || !head.set) continue;
+
+                // Black, with rank carried by weight and opacity. Colouring the
+                // arrows as well as the badges said the same thing twice and put
+                // a second saturated colour across the board; one neutral line
+                // between two coloured markers reads more cleanly.
+                const float thickness = std::max(1.5f, cellSide * (0.050f - 0.008f * i));
+                const int alpha = std::max(70, 200 - 42 * i);
+                const ImU32 color = IM_COL32(12, 12, 14, alpha);
+
+                const ImVec2 start = tail.center;
+                const ImVec2 end = head.center;
+
+                float dx = end.x - start.x;
+                float dy = end.y - start.y;
+                const float length = std::sqrt(dx * dx + dy * dy);
+                if (length < 1.0f) continue;
+                dx /= length;
+                dy /= length;
+
+                // The arrow runs between the two badges, stopping clear of each
+                // by its own radius, so it never crosses the middle of a square
+                // where the pieces are and never runs under a number.
+                const float clearTail = tail.radius + 3.0f;
+                const float clearHead = head.radius + 3.0f;
+                const float headLength = cellSide * 0.18f;
+                if (length <= clearTail + clearHead + headLength) continue;
+
+                const ImVec2 shaftStart(start.x + dx * clearTail, start.y + dy * clearTail);
+                const ImVec2 tip(end.x - dx * clearHead, end.y - dy * clearHead);
+                const ImVec2 shaftEnd(tip.x - dx * headLength, tip.y - dy * headLength);
+
+                // Rounded tail. AddLine has square ends, which read as ragged at
+                // these weights; a disc the width of the shaft closes it off.
+                draw_list->AddCircleFilled(shaftStart, thickness * 0.5f, color, 12);
+                draw_list->AddLine(shaftStart, shaftEnd, color, thickness);
+
+                // Arrowhead, built on the perpendicular at the end of the shaft.
+                const float halfWidth = headLength * 0.44f;
+                draw_list->AddTriangleFilled(
+                    tip,
+                    ImVec2(shaftEnd.x - dy * halfWidth, shaftEnd.y + dx * halfWidth),
+                    ImVec2(shaftEnd.x + dy * halfWidth, shaftEnd.y - dx * halfWidth),
+                    color);
+            }
+        }
+
+        /* BADGES. */
+        // Small discs rather than labels. A rank is one character, so a circle
+        // sized to that character is the least ink that can carry it, and it
+        // stays legible over a piece without covering one. Positions come from
+        // the layout pass, so these land exactly where the arrows expect them.
+        for (const auto& entry : badgesBySquare) {
+            for (const Badge& badge : entry.second) {
+                if (badge.radius <= 0.0f) continue;
 
                 // A destination is solid, a source is a ring, so the two ends of
                 // one move stay distinguishable without a second colour.
                 if (badge.destination) {
-                    draw_list->AddCircleFilled(center, radius, badge.fill, 20);
+                    draw_list->AddCircleFilled(badge.center, badge.radius, badge.fill, 20);
                 }
                 else {
-                    draw_list->AddCircleFilled(center, radius, IM_COL32(18, 18, 20, 205), 20);
-                    draw_list->AddCircle(center, radius - 0.5f, badge.fill, 20,
-                                         std::max(1.2f, radius * 0.16f));
+                    draw_list->AddCircleFilled(badge.center, badge.radius, IM_COL32(18, 18, 20, 205), 20);
+                    draw_list->AddCircle(badge.center, badge.radius - 0.5f, badge.fill, 20,
+                                         std::max(1.2f, badge.radius * 0.16f));
                 }
 
+                const float fontSize = badge.radius * 1.30f;
                 const ImVec2 textSize = ImGui::GetFont()->CalcTextSizeA(
                     fontSize, FLT_MAX, 0.0f, badge.text.c_str());
                 draw_list->AddText(ImGui::GetFont(), fontSize,
-                    ImVec2(center.x - textSize.x * 0.5f, center.y - textSize.y * 0.5f),
+                    ImVec2(badge.center.x - textSize.x * 0.5f, badge.center.y - textSize.y * 0.5f),
                     IM_COL32(255, 255, 255, 255), badge.text.c_str());
-
-                centerX += radius * 2.0f + gap;
             }
         }
     }
