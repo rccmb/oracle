@@ -6,14 +6,14 @@
 #include <iostream>
 #include <string>
 
-#include "BoardDetection.h"
-#include "ChessboardDetection.h"
-#include "Utils.h"
+#include "vision/BoardDetection.h"
+#include "vision/ChessboardDetection.h"
+#include "platform/Utils.h"
 #include "Globals.h"
 #include "Structs.h"
-#include "Overlay.h"
-#include "InitialConfiguration.h"
-#include "StockfishHandler.h"
+#include "platform/Overlay.h"
+#include "vision/InitialConfiguration.h"
+#include "engine/StockfishHandler.h"
 
 #include "imgui.h"
 #include "imgui_impl_win32.h"

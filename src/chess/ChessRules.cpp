@@ -1,4 +1,4 @@
-#include "ChessRules.h"
+#include "chess/ChessRules.h"
 
 #include <cctype>
 #include <sstream>

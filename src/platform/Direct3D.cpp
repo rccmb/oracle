@@ -1,4 +1,4 @@
-#include "Direct3D.h"
+#include "platform/Direct3D.h"
 
 ID3D11RenderTargetView* g_mainRenderTargetView = nullptr;
 ID3D11Device* g_pd3dDevice = nullptr;

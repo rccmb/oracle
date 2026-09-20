@@ -15,14 +15,14 @@
 #include <filesystem>
 #include <fstream>
 
-#include "Utils.h"
-#include "Overlay.h"
+#include "platform/Utils.h"
+#include "platform/Overlay.h"
 #include "Structs.h"
 #include "Globals.h"
-#include "InitialConfiguration.h"
-#include "StockfishHandler.h"
-#include "FileHandler.h"
-#include "GameTracker.h"
+#include "vision/InitialConfiguration.h"
+#include "engine/StockfishHandler.h"
+#include "platform/FileHandler.h"
+#include "chess/GameTracker.h"
 
 // TODO: Documentation.
 double SampleCellCenter(const cv::Mat& gray, int x, int y, int offsetX, int offsetY);

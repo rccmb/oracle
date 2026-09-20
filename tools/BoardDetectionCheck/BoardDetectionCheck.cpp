@@ -7,7 +7,7 @@
 // them says so instead of silently degrading in real games.
 //
 // Build with build.bat. See README.md.
-#include "BoardDetection.h"
+#include "vision/BoardDetection.h"
 
 #include <cstdio>
 #include <cstdlib>

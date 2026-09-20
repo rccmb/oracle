@@ -1,5 +1,5 @@
 @echo off
-rem Builds PerftCheck against the rules engine in Oracle\. No OpenCV needed:
+rem Builds PerftCheck against the rules engine in src\. No OpenCV needed:
 rem ChessRules deliberately depends on nothing but the standard library.
 setlocal
 
@@ -9,8 +9,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
-set ORACLE_SRC=%~dp0..\..\Oracle
+set ORACLE_SRC=%~dp0..\..\src
 cd /d "%~dp0"
-cl /nologo /std:c++17 /EHsc /O2 /I "%ORACLE_SRC%" PerftCheck.cpp "%ORACLE_SRC%\ChessRules.cpp" /Fe:PerftCheck.exe
+cl /nologo /std:c++17 /EHsc /O2 /I "%ORACLE_SRC%" PerftCheck.cpp "%ORACLE_SRC%\chess\ChessRules.cpp" /Fe:PerftCheck.exe
 if errorlevel 1 exit /b 1
 echo Built PerftCheck.exe

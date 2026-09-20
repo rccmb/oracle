@@ -1,4 +1,4 @@
-#include "GameTracker.h"
+#include "chess/GameTracker.h"
 
 #include <cstring>
 

@@ -10,14 +10,14 @@
 #include <vector>
 #include <WinBase.h>
 
-#include "Utils.h"
+#include "platform/Utils.h"
 #include "Globals.h"
 #include "Structs.h"
-#include "Overlay.h"
-#include "ChessboardDetection.h"
-#include "Direct3D.h"
-#include "Menu.h"
-#include "StockfishHandler.h"
+#include "platform/Overlay.h"
+#include "vision/ChessboardDetection.h"
+#include "platform/Direct3D.h"
+#include "ui/Menu.h"
+#include "engine/StockfishHandler.h"
 #include "imgui.h"
 
 static bool IMGUI_MENU_VISIBLE = false;

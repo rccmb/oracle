@@ -60,32 +60,52 @@ Follow the steps in the README.
 
 ### Bundled Dependencies (No Setup Needed)
 
-- **Dear ImGui** - Source files are vendored in `Oracle/ImGui/`.
-- **Stockfish** - The engine executable and sources are in `Oracle/stockfish/`.
+- **Dear ImGui** - Source files are vendored in `third_party/imgui/`.
+- **Stockfish** - The engine executable and sources are in `third_party/stockfish/`.
 
 ---
 
 ## Project Layout
 
 ```
-Oracle/
-├── main.cpp                    # Entry point, render loop, hotkeys
-├── ChessboardDetection.cpp/h   # Vision pipeline, piece matching, FEN generation
-├── StockfishHandler.cpp/h      # Stockfish UCI communication
-├── InitialConfiguration.cpp/h  # Calibration flow (clicks, samples, crop, refs)
-├── Menu.cpp/h                  # ImGui interface (configuration + analysis)
-├── Overlay.cpp/h               # Transparent Win32 overlay window
-├── Direct3D.cpp/h              # D3D11 device, swap chain, render target
-├── BoardStateManager.cpp/h     # Board change detection thread
-├── Utils.cpp/h                 # Screen capture, palette masking, unicode
-├── FileHandler.cpp/h           # Reference piece image I/O
-├── Globals.cpp/h               # Global state declarations / definitions
-├── Structs.h                   # CLICK and SAMPLE data structures
-├── ImGui/                      # Vendored Dear ImGui (do not modify)
-├── stockfish/                  # Bundled Stockfish (do not modify)
-├── Oracle.sln                  # Visual Studio solution
-└── Oracle.vcxproj              # Visual Studio project file
+oracle/
+├── Oracle.sln                     # Visual Studio solution
+├── Oracle.vcxproj                 # Visual Studio project
+├── src/
+│   ├── main.cpp                   # Entry point, overlay window, render loop
+│   ├── Globals.cpp/h              # Shared state, declared once and used everywhere
+│   ├── Structs.h                  # CLICK, SAMPLE, StockfishMove
+│   ├── chess/                     # The rules. Standard library only.
+│   │   ├── ChessRules.cpp/h       #   Positions, legal moves, FEN
+│   │   └── GameTracker.cpp/h      #   Follows the game across frames
+│   ├── vision/                    # Reading a board off the screen. OpenCV.
+│   │   ├── BoardDetection.cpp/h   #   Automatic board, colour and orientation search
+│   │   ├── ChessboardDetection.cpp/h  # Per-square matching, the analysis loop
+│   │   └── InitialConfiguration.cpp/h # Manual calibration, reference capture
+│   ├── engine/
+│   │   └── StockfishHandler.cpp/h # UCI protocol, engine lifecycle
+│   ├── platform/                  # Windows: capture, windowing, files.
+│   │   ├── Utils.cpp/h            #   Screen capture, DPI, palette masking
+│   │   ├── Overlay.cpp/h          #   Transparent Win32 overlay window
+│   │   ├── Direct3D.cpp/h         #   D3D11 device, swap chain, render target
+│   │   └── FileHandler.cpp/h      #   Reference piece image I/O
+│   └── ui/
+│       └── Menu.cpp/h             # ImGui: setup, settings, preview, evaluation
+├── third_party/
+│   ├── imgui/                     # Vendored Dear ImGui (do not modify)
+│   └── stockfish/                 # Bundled Stockfish (do not modify)
+├── tools/
+│   ├── PerftCheck/                # Move generator, against the perft suite
+│   ├── TrackerCheck/              # Game tracking across frames
+│   ├── FenCheck/                  # Castling rights and position validation
+│   └── BoardDetectionCheck/       # Offline check for the board detector
+└── OpenCV/                        # OpenCV installation (not tracked in git)
 ```
+
+The folders under `src/` run one way: `chess` depends on nothing, `vision`
+depends on OpenCV, `platform` on Windows, and only `ui` and `main.cpp` depend on
+everything. `chess` having no dependencies is not an aspiration, it is checked
+every time `tools/PerftCheck` builds without OpenCV on the command line.
 
 For a detailed description of each module, see [ARCHITECTURE.md](ARCHITECTURE.md).
 

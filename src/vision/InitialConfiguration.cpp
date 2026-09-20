@@ -1,4 +1,4 @@
-#include "InitialConfiguration.h"
+#include "vision/InitialConfiguration.h"
 
 void SetBoardClicks() {
     const cv::Mat& screenshot = g_userScreenshotGray;

@@ -5,7 +5,7 @@
 // the rules: en passant, promotion, castling through check, pinned pieces,
 // castling rights lost to a captured rook. A generator that gets all six
 // positions right is not subtly wrong.
-#include "ChessRules.h"
+#include "chess/ChessRules.h"
 
 #include <cstdio>
 #include <string>

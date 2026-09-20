@@ -83,8 +83,8 @@ original flow: screenshot, `Ctrl + LMB` on a8 then b8, and the sampling sliders.
 | **Windows SDK** | 10.0+ | Included with Visual Studio |
 | **OpenCV** | 4.12.0 | Pre-built binaries (`opencv_world4120`, put in `OpenCV` directory at the root of the repo) |
 | **DirectX 11** | - | Ships with Windows SDK |
-| **Dear ImGui** | - | Vendored in `Oracle/ImGui/` (no setup needed) |
-| **Stockfish** | - | Bundled in `Oracle/stockfish/` (no setup needed) |
+| **Dear ImGui** | - | Vendored in `third_party/imgui/` (no setup needed) |
+| **Stockfish** | - | Bundled in `third_party/stockfish/` (no setup needed) |
 | **C++ Standard** | C++17 | Set in the project configuration |
 
 ## Building from Source
@@ -102,7 +102,7 @@ Download the pre-built OpenCV 4.12.0 binaries from [opencv.org/releases](https:/
 
 ### 3. Build
 
-Open `Oracle/Oracle.sln` in Visual Studio 2022, select **x64**, and build
+Open `Oracle.sln` in Visual Studio 2022, select **x64**, and build
 (`Ctrl + Shift + B`). Both Debug and Release are configured, no project
 properties need editing, and the matching OpenCV DLL is copied next to the
 executable automatically.
@@ -117,7 +117,9 @@ msbuild Oracle.sln -p:Configuration=Release -p:Platform=x64 -p:OracleOpenCVRoot=
 
 ### 4. Run
 
-Launch from Visual Studio (`F5`) or run the compiled executable directly. Make sure `stockfish/stockfish.exe` is accessible relative to the executable's working directory.
+Launch from Visual Studio (`F5`) or run the compiled executable directly from
+`x64/<configuration>/`. The engine and the reference pieces are found relative to
+the executable, so it does not matter which directory Oracle is started from.
 
 ## Usage
 
@@ -146,32 +148,43 @@ flow, and **Advanced: sampling geometry** for the sliders.
 
 ```
 oracle/
-├── Oracle/                        # Main source directory
+├── Oracle.sln                     # Visual Studio solution
+├── Oracle.vcxproj                 # Visual Studio project
+├── src/
 │   ├── main.cpp                   # Entry point, overlay window, render loop
-│   ├── BoardDetection.cpp/h       # Automatic board, colour and orientation search
-│   ├── ChessRules.cpp/h           # Positions, legal moves, FEN
-│   ├── GameTracker.cpp/h          # Follows the game across frames
-│   ├── ChessboardDetection.cpp/h  # Board scanning, FEN generation, piece matching
-│   ├── StockfishHandler.cpp/h     # UCI protocol, engine lifecycle
-│   ├── InitialConfiguration.cpp/h # Calibration: clicks, samples, crop, references
-│   ├── Menu.cpp/h                 # ImGui UI: settings, live preview, move display
-│   ├── Overlay.cpp/h              # Transparent fullscreen Win32 overlay
-│   ├── Direct3D.cpp/h             # D3D11 device, swap chain, render target
-│   ├── Utils.cpp/h                # Screen capture, DPI setup, palette masking
-│   ├── FileHandler.cpp/h          # Reference piece image I/O
-│   ├── Globals.cpp/h              # Shared global state
-│   ├── Structs.h                  # CLICK and SAMPLE data structures
-│   ├── ImGui/                     # Vendored Dear ImGui sources
-│   ├── stockfish/                 # Bundled Stockfish engine + sources
-│   ├── Oracle.sln                 # Visual Studio solution
-│   └── Oracle.vcxproj             # Visual Studio project
+│   ├── Globals.cpp/h              # Shared state, declared once and used everywhere
+│   ├── Structs.h                  # CLICK, SAMPLE, StockfishMove
+│   ├── chess/                     # The rules. Standard library only.
+│   │   ├── ChessRules.cpp/h       #   Positions, legal moves, FEN
+│   │   └── GameTracker.cpp/h      #   Follows the game across frames
+│   ├── vision/                    # Reading a board off the screen. OpenCV.
+│   │   ├── BoardDetection.cpp/h   #   Automatic board, colour and orientation search
+│   │   ├── ChessboardDetection.cpp/h  # Per-square matching, the analysis loop
+│   │   └── InitialConfiguration.cpp/h # Manual calibration, reference capture
+│   ├── engine/
+│   │   └── StockfishHandler.cpp/h # UCI protocol, engine lifecycle
+│   ├── platform/                  # Windows: capture, windowing, files.
+│   │   ├── Utils.cpp/h            #   Screen capture, DPI, palette masking
+│   │   ├── Overlay.cpp/h          #   Transparent Win32 overlay window
+│   │   ├── Direct3D.cpp/h         #   D3D11 device, swap chain, render target
+│   │   └── FileHandler.cpp/h      #   Reference piece image I/O
+│   └── ui/
+│       └── Menu.cpp/h             # ImGui: setup, settings, preview, evaluation
+├── third_party/
+│   ├── imgui/                     # Vendored Dear ImGui (do not modify)
+│   └── stockfish/                 # Bundled Stockfish (do not modify)
 ├── tools/
-│   ├── BoardDetectionCheck/       # Offline check for the board detector
-│   ├── FenCheck/                  # Castling rights and position validation
 │   ├── PerftCheck/                # Move generator, against the perft suite
-│   └── TrackerCheck/              # Game tracking across frames
+│   ├── TrackerCheck/              # Game tracking across frames
+│   ├── FenCheck/                  # Castling rights and position validation
+│   └── BoardDetectionCheck/       # Offline check for the board detector
 └── OpenCV/                        # OpenCV installation (not tracked in git)
 ```
+
+The folders under `src/` run one way: `chess` depends on nothing, `vision`
+depends on OpenCV, `platform` on Windows, and only `ui` and `main.cpp` depend on
+everything. `chess` having no dependencies is not an aspiration, it is checked
+every time `tools/PerftCheck` builds without OpenCV on the command line.
 
 > For a deep dive into the architecture and module responsibilities, see [ARCHITECTURE.md](ARCHITECTURE.md).
 

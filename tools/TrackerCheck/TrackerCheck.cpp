@@ -4,7 +4,7 @@
 // sixty-four characters, nothing else. Expectations are written as FEN strings
 // by hand, so a change that makes the tracker agree with itself but disagree
 // with chess still fails here.
-#include "GameTracker.h"
+#include "chess/GameTracker.h"
 
 #include <cstdio>
 #include <cstring>

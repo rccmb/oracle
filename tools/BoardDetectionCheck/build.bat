@@ -1,5 +1,5 @@
 @echo off
-rem Builds BoardDetectionCheck against the detector in Oracle\.
+rem Builds BoardDetectionCheck against the detector in src\.
 rem
 rem Set ORACLE_OPENCV_ROOT to override the OpenCV location, exactly as the main
 rem project does. The default is the in-repo OpenCV the README describes.
@@ -11,7 +11,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-set ORACLE_SRC=%~dp0..\..\Oracle
+set ORACLE_SRC=%~dp0..\..\src
 if "%ORACLE_OPENCV_ROOT%"=="" set ORACLE_OPENCV_ROOT=%~dp0..\..\OpenCV\opencv\build
 
 if not exist "%ORACLE_OPENCV_ROOT%\include" (
@@ -22,8 +22,8 @@ if not exist "%ORACLE_OPENCV_ROOT%\include" (
 
 cd /d "%~dp0"
 cl /nologo /std:c++17 /EHsc /MDd /O2 ^
-   /I "%ORACLE_SRC%" /I "%ORACLE_SRC%\ImGui" /I "%ORACLE_OPENCV_ROOT%\include" ^
-   BoardDetectionCheck.cpp "%ORACLE_SRC%\BoardDetection.cpp" "%ORACLE_SRC%\Globals.cpp" ^
+   /I "%ORACLE_SRC%" /I "%~dp0..\..\third_party\imgui" /I "%ORACLE_OPENCV_ROOT%\include" ^
+   BoardDetectionCheck.cpp "%ORACLE_SRC%\vision\BoardDetection.cpp" "%ORACLE_SRC%\Globals.cpp" ^
    /Fe:BoardDetectionCheck.exe ^
    /link /LIBPATH:"%ORACLE_OPENCV_ROOT%\x64\vc16\lib" opencv_world4120d.lib
 if errorlevel 1 exit /b 1

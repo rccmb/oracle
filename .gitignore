@@ -1049,11 +1049,11 @@ x64/
 temp/*.mp4
 
 # Oracle: local runtime and debug artifacts
-Oracle/imgui.ini
-Oracle/temp/
-Oracle/screenshot.png
-Oracle/debug_screenshot*.png
-Oracle/debug_screenshot*.jpg
+imgui.ini
+temp/
+screenshot.png
+debug_screenshot*.png
+debug_screenshot*.jpg
 
 # Oracle: detection check tool build output
 tools/BoardDetectionCheck/*.exe

@@ -2,7 +2,7 @@
 //
 // Guards the crash described in README.md: claiming a castling right for a side
 // with no rook segfaults Stockfish, which is what killed the engine in endgames.
-#include "ChessboardDetection.h"
+#include "vision/ChessboardDetection.h"
 #include <cstdio>
 
 // Rows are given as seen on screen, top row first, using FEN letters and '.' for

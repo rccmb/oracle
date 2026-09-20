@@ -77,7 +77,7 @@
          points at build\x64\vc16 rather than the build root, so a machine-wide
          value would silently pull in an unrelated OpenCV installation. -->
     <OracleOpenCVRoot Condition="'$(ORACLE_OPENCV_ROOT)' != ''">$(ORACLE_OPENCV_ROOT)</OracleOpenCVRoot>
-    <OracleOpenCVRoot Condition="'$(OracleOpenCVRoot)' == ''">$(SolutionDir)..\OpenCV\opencv\build</OracleOpenCVRoot>
+    <OracleOpenCVRoot Condition="'$(OracleOpenCVRoot)' == ''">$(SolutionDir)OpenCV\opencv\build</OracleOpenCVRoot>
     <OracleOpenCVLib Condition="'$(Configuration)' == 'Debug'">opencv_world4120d</OracleOpenCVLib>
     <OracleOpenCVLib Condition="'$(OracleOpenCVLib)' == ''">opencv_world4120</OracleOpenCVLib>
   </PropertyGroup>
@@ -118,7 +118,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>ImGui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>src;third_party\imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -135,7 +135,7 @@
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>ImGui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>src;third_party\imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -144,49 +144,49 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Direct3D.cpp" />
-    <ClCompile Include="FileHandler.cpp" />
-    <ClCompile Include="Globals.cpp" />
-    <ClCompile Include="InitialConfiguration.cpp" />
-    <ClCompile Include="Menu.cpp" />
-    <ClCompile Include="ImGui\imgui.cpp" />
-    <ClCompile Include="ImGui\imgui_demo.cpp" />
-    <ClCompile Include="ImGui\imgui_draw.cpp" />
-    <ClCompile Include="ImGui\imgui_impl_dx11.cpp" />
-    <ClCompile Include="ImGui\imgui_impl_win32.cpp" />
-    <ClCompile Include="ImGui\imgui_tables.cpp" />
-    <ClCompile Include="ImGui\imgui_widgets.cpp" />
-    <ClCompile Include="main.cpp" />
-    <ClCompile Include="Overlay.cpp" />
-    <ClCompile Include="StockfishHandler.cpp" />
-    <ClCompile Include="Utils.cpp" />
-    <ClCompile Include="BoardDetection.cpp" />
-    <ClCompile Include="ChessRules.cpp" />
-    <ClCompile Include="GameTracker.cpp" />
-    <ClCompile Include="ChessboardDetection.cpp" />
+    <ClCompile Include="src\platform\Direct3D.cpp" />
+    <ClCompile Include="src\platform\FileHandler.cpp" />
+    <ClCompile Include="src\Globals.cpp" />
+    <ClCompile Include="src\vision\InitialConfiguration.cpp" />
+    <ClCompile Include="src\ui\Menu.cpp" />
+    <ClCompile Include="third_party\imgui\imgui.cpp" />
+    <ClCompile Include="third_party\imgui\imgui_demo.cpp" />
+    <ClCompile Include="third_party\imgui\imgui_draw.cpp" />
+    <ClCompile Include="third_party\imgui\imgui_impl_dx11.cpp" />
+    <ClCompile Include="third_party\imgui\imgui_impl_win32.cpp" />
+    <ClCompile Include="third_party\imgui\imgui_tables.cpp" />
+    <ClCompile Include="third_party\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\platform\Overlay.cpp" />
+    <ClCompile Include="src\engine\StockfishHandler.cpp" />
+    <ClCompile Include="src\platform\Utils.cpp" />
+    <ClCompile Include="src\vision\BoardDetection.cpp" />
+    <ClCompile Include="src\chess\ChessRules.cpp" />
+    <ClCompile Include="src\chess\GameTracker.cpp" />
+    <ClCompile Include="src\vision\ChessboardDetection.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Direct3D.h" />
-    <ClInclude Include="FileHandler.h" />
-    <ClInclude Include="Globals.h" />
-    <ClInclude Include="InitialConfiguration.h" />
-    <ClInclude Include="Menu.h" />
-    <ClInclude Include="ImGui\imconfig.h" />
-    <ClInclude Include="ImGui\imgui.h" />
-    <ClInclude Include="ImGui\imgui_impl_dx11.h" />
-    <ClInclude Include="ImGui\imgui_impl_win32.h" />
-    <ClInclude Include="ImGui\imgui_internal.h" />
-    <ClInclude Include="ImGui\imstb_rectpack.h" />
-    <ClInclude Include="ImGui\imstb_textedit.h" />
-    <ClInclude Include="ImGui\imstb_truetype.h" />
-    <ClInclude Include="Overlay.h" />
-    <ClInclude Include="StockfishHandler.h" />
-    <ClInclude Include="Structs.h" />
-    <ClInclude Include="Utils.h" />
-    <ClInclude Include="BoardDetection.h" />
-    <ClInclude Include="ChessRules.h" />
-    <ClInclude Include="GameTracker.h" />
-    <ClInclude Include="ChessboardDetection.h" />
+    <ClInclude Include="src\platform\Direct3D.h" />
+    <ClInclude Include="src\platform\FileHandler.h" />
+    <ClInclude Include="src\Globals.h" />
+    <ClInclude Include="src\vision\InitialConfiguration.h" />
+    <ClInclude Include="src\ui\Menu.h" />
+    <ClInclude Include="third_party\imgui\imconfig.h" />
+    <ClInclude Include="third_party\imgui\imgui.h" />
+    <ClInclude Include="third_party\imgui\imgui_impl_dx11.h" />
+    <ClInclude Include="third_party\imgui\imgui_impl_win32.h" />
+    <ClInclude Include="third_party\imgui\imgui_internal.h" />
+    <ClInclude Include="third_party\imgui\imstb_rectpack.h" />
+    <ClInclude Include="third_party\imgui\imstb_textedit.h" />
+    <ClInclude Include="third_party\imgui\imstb_truetype.h" />
+    <ClInclude Include="src\platform\Overlay.h" />
+    <ClInclude Include="src\engine\StockfishHandler.h" />
+    <ClInclude Include="src\Structs.h" />
+    <ClInclude Include="src\platform\Utils.h" />
+    <ClInclude Include="src\vision\BoardDetection.h" />
+    <ClInclude Include="src\chess\ChessRules.h" />
+    <ClInclude Include="src\chess\GameTracker.h" />
+    <ClInclude Include="src\vision\ChessboardDetection.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Target Name="CopyOpenCVRuntime" AfterTargets="Build" Condition="'$(Platform)'=='x64'">

@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include "ChessRules.h"
+#include "chess/ChessRules.h"
 
 // Follows a game rather than re-reading the board.
 //

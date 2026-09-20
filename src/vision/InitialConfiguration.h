@@ -16,8 +16,8 @@
 
 #include "Structs.h"
 #include "Globals.h"
-#include "Utils.h"
-#include "FileHandler.h"
+#include "platform/Utils.h"
+#include "platform/FileHandler.h"
 
 /**
  * @brief Records user mouse clicks on the desktop to define two corners of the chessboard.

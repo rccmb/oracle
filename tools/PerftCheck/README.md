@@ -1,6 +1,6 @@
 # PerftCheck
 
-Proves the move generator in `Oracle/ChessRules.cpp` against the published perft
+Proves the move generator in `src/chess/ChessRules.cpp` against the published perft
 suite.
 
 Perft counts leaf nodes at a fixed depth from a given position. The reference
