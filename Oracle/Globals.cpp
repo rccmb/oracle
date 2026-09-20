@@ -64,6 +64,7 @@ std::vector<char> g_prevLetterDrawQueue;
 
 bool g_boardChanged;
 std::mutex g_boardChangedMutex;
+std::mutex g_analysisStateMutex;
 
 bool g_noBoard = true;
 

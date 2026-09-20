@@ -84,11 +84,18 @@ void RenderFrame() {
         }
     }
 
-    // Draw the best move on the board
-    if (!g_isRescanning && !g_sfBestMoves.empty() && !g_isConfiguringCropRegion && !g_isConfiguringSamplePoints &&
+    // Draw the best move on the board. Copied out of the shared state first: the
+    // detection thread reallocates this vector and the strings inside it.
+    std::vector<StockfishMove> bestMoves;
+    {
+        std::lock_guard<std::mutex> snapshot(g_analysisStateMutex);
+        bestMoves = g_sfBestMoves;
+    }
+
+    if (!g_isRescanning && !bestMoves.empty() && !g_isConfiguringCropRegion && !g_isConfiguringSamplePoints &&
         (g_boardRect.right - g_boardRect.left) > 0 && (g_boardRect.bottom - g_boardRect.top) > 0) {
         
-        const auto& bestMove = g_sfBestMoves.front();
+        const auto& bestMove = bestMoves.front();
         if (bestMove.uci.length() >= 4) {
             char srcFile = bestMove.uci[0];
             char srcRank = bestMove.uci[1];

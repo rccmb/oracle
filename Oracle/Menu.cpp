@@ -207,8 +207,14 @@ void ShowMenu(int imageWidth, int imageHeight) {
         g_refBoardColor2 = -1;
         g_noBoard = true;
         g_prevLetterDrawQueue.clear();
-        g_detectedLetters.assign(64, ' ');
-        g_boardGridRows.assign(8, std::string(8, ' '));
+        {
+            // Cleared from the render thread while the detection thread may be
+            // mid publish, so this takes the same lock the publisher does.
+            std::lock_guard<std::mutex> reset(g_analysisStateMutex);
+            g_detectedLetters.assign(64, ' ');
+            g_boardGridRows.assign(8, std::string(8, ' '));
+            g_sfBestMoves.clear();
+        }
     }
     
     /* CURRENT MODE. */
@@ -402,6 +408,17 @@ void ShowMenu(int imageWidth, int imageHeight) {
         ImU32 lightSquare = IM_COL32(25, 20, 20, 255);
 
         if (ImGui::Begin("Real-Time Analysis", nullptr, windowFlags)) {
+            // One snapshot of what the detection thread has produced, taken before
+            // anything is drawn. Reading these directly would race with the thread
+            // reallocating them mid frame.
+            std::vector<std::string> boardRows;
+            std::vector<StockfishMove> bestMoves;
+            {
+                std::lock_guard<std::mutex> snapshot(g_analysisStateMutex);
+                boardRows = g_boardGridRows;
+                bestMoves = g_sfBestMoves;
+            }
+
             /* STOCKFISH RELATED. */
             bool stockfishAlive = StockfishIsAlive();
 
@@ -462,8 +479,8 @@ void ShowMenu(int imageWidth, int imageHeight) {
                         ImVec2 cellMin = ImGui::GetCursorScreenPos();
 
                         char piece = ' ';
-                        if (row < (int)g_boardGridRows.size() && col < (int)g_boardGridRows[row].size()) {
-                            piece = g_boardGridRows[row][col];
+                        if (row < (int)boardRows.size() && col < (int)boardRows[row].size()) {
+                            piece = boardRows[row][col];
                         }
 
                         std::string symbol = PieceToUnicode(piece);
@@ -488,8 +505,6 @@ void ShowMenu(int imageWidth, int imageHeight) {
             /* STOCKFISH REAL-TIME MOVES. */
             // TODO: The user may want to change Stockfish settings mid move, if so, it should re-render.
             if (stockfishAlive) {
-                std::string fen = BoardToFEN();
-
                 ImGui::Separator();
 
                 // TODO: This isn't actually doing anything interesting.
@@ -501,7 +516,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
                 std::vector<StockfishMove> yellowMoves; 
                 std::vector<StockfishMove> redMoves;    
 
-                for (const auto& mv : g_sfBestMoves) {
+                for (const auto& mv : bestMoves) {
                     if (mv.mate) {
                         greenMoves.push_back(mv); 
                         continue;

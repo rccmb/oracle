@@ -75,7 +75,10 @@ std::string BoardToFEN() {
     }
 
 	// All validations passes, update last valid FEN.
-    g_lastValidFEN = result;
+    {
+        std::lock_guard<std::mutex> publish(g_analysisStateMutex);
+        g_lastValidFEN = result;
+    }
     return result;
 }
 
@@ -282,7 +285,10 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                     newRows[row] = rowStr;
                 }
 
-                g_boardGridRows = std::move(newRows);
+                {
+                    std::lock_guard<std::mutex> publish(g_analysisStateMutex);
+                    g_boardGridRows = std::move(newRows);
+                }
                 g_noBoard = false;
             }
 
@@ -290,7 +296,13 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                 std::string fen = BoardToFEN();
                 static std::string lastQueriedFen;
                 if (fen != lastQueriedFen) {
-                    g_sfBestMoves = GetBestMoves(fen, g_sfElo, g_sfNumberMoves, g_sfMoveDepth);
+                    // The engine call blocks, so it runs outside the lock and only
+                    // its result is published.
+                    std::vector<StockfishMove> moves =
+                        GetBestMoves(fen, g_sfElo, g_sfNumberMoves, g_sfMoveDepth);
+
+                    std::lock_guard<std::mutex> publish(g_analysisStateMutex);
+                    g_sfBestMoves = std::move(moves);
                     lastQueriedFen = fen;
                 }
             }

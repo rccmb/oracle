@@ -85,6 +85,14 @@ extern std::vector<char> g_prevLetterDrawQueue;
 extern bool g_boardChanged;
 extern std::mutex g_boardChangedMutex;
 
+// Guards the state the detection thread produces and the render thread consumes:
+// g_boardGridRows, g_detectedLetters, g_sfBestMoves and g_lastValidFEN. These are
+// vectors and strings that the detection thread reallocates, so reading them from
+// the render thread without holding this is undefined behaviour, not a stale read.
+//
+// Held only to copy in or out. Nothing slow happens inside it.
+extern std::mutex g_analysisStateMutex;
+
 extern bool g_noBoard;
 
 extern std::string g_lastValidFEN;
