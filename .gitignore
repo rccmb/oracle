@@ -1046,5 +1046,4 @@ dkms.conf
 
 OpenCV/
 x64/
-temp/* . m p 4  
- 
+temp/*.mp4
