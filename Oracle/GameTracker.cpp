@@ -10,8 +10,34 @@ namespace {
 // that a genuine desynchronisation recovers within a second or so.
 constexpr int kAdoptAfterRepeats = 40;
 
+// Squares a candidate may disagree on and still be accepted.
+//
+// Demanding all sixty-four match exactly sounds safer and is in fact useless:
+// template matching misreads the odd square, and under an exact rule one wrong
+// square means no move ever explains the board again.
+//
+// One is the only safe slack. A quiet move changes exactly two squares, so at a
+// tolerance of two a move and a pair of misreads become the same thing: a new
+// game reads as noise, and two plies in one frame read as the first of them.
+// At one, a single misread square is absorbed and everything else still has to
+// be explained properly.
+constexpr int kSquareTolerance = 1;
+
+// Counting is capped for speed, but the cap has to leave room to tell a good
+// candidate from a merely plausible one, so it sits above the tolerance.
+constexpr int kMismatchCountCap = kSquareTolerance + 3;
+
 bool SameBoard(const char a[64], const char b[64]) {
     return std::memcmp(a, b, 64) == 0;
+}
+
+int MismatchCount(const ChessPosition& position, const char observed[64], int giveUpAt) {
+    int mismatches = 0;
+    for (int square = 0; square < 64; ++square) {
+        if (position.PieceAt(square) == observed[square]) continue;
+        if (++mismatches > giveUpAt) return mismatches; // No need for an exact count.
+    }
+    return mismatches;
 }
 
 } // namespace
@@ -33,24 +59,53 @@ void GameTracker::Reset() {
 TrackerOutcome GameTracker::Observe(const char observed[64]) {
     m_lastApplied = 0;
 
-    // Nothing moved.
-    if (m_position.SameBoard(observed)) {
+    // How badly the position already held disagrees with the frame. A couple of
+    // squares of disagreement is ordinary detector noise, not a move.
+    const int stayMismatch = MismatchCount(m_position, observed, kMismatchCountCap);
+
+    // One ply. This is the overwhelmingly common case, and the reason the whole
+    // approach works: about thirty candidates, and the one that was actually
+    // played reproduces the board while the rest are nowhere near it.
+    const std::vector<Move> legal = m_position.LegalMoves();
+
+    const Move* bestMove = nullptr;
+    ChessPosition bestPosition;
+    int bestMismatch = kMismatchCountCap + 1;
+    int secondMismatch = kMismatchCountCap + 1;
+
+    for (const Move& move : legal) {
+        const ChessPosition next = m_position.AfterMove(move);
+        const int mismatch = MismatchCount(next, observed, kMismatchCountCap);
+
+        if (mismatch < bestMismatch) {
+            secondMismatch = bestMismatch;
+            bestMismatch = mismatch;
+            bestMove = &move;
+            bestPosition = next;
+        }
+        else if (mismatch < secondMismatch) {
+            secondMismatch = mismatch;
+        }
+    }
+
+    // Standing still is preferred whenever it explains the frame at least as
+    // well as any move does, so noise on a quiet board is never read as a move.
+    if (stayMismatch <= kSquareTolerance && stayMismatch <= bestMismatch) {
         m_unreadableStreak = 0;
         m_pendingRepeats = 0;
         return TrackerOutcome::Unchanged;
     }
 
-    // One ply. This is the overwhelmingly common case, and the reason the whole
-    // approach works: about thirty candidates, of which at most one produces
-    // exactly this arrangement of pieces.
-    const std::vector<Move> legal = m_position.LegalMoves();
-    for (const Move& move : legal) {
-        const ChessPosition next = m_position.AfterMove(move);
-        if (!next.SameBoard(observed)) continue;
+    // A move is taken only when it beats both standing still and every other
+    // move. An exact reproduction needs no margin; anything less has to win
+    // outright, since two candidates fitting equally well means the frame does
+    // not actually say which was played.
+    const bool decisive = (bestMismatch == 0) || (bestMismatch < secondMismatch);
 
-        m_history.push_back({ move, move.ToUci(), m_position.SideToMove() });
-        m_position = next;
-        m_positionHistory.push_back(next);
+    if (bestMove && bestMismatch <= kSquareTolerance && bestMismatch < stayMismatch && decisive) {
+        m_history.push_back({ *bestMove, bestMove->ToUci(), m_position.SideToMove() });
+        m_position = bestPosition;
+        m_positionHistory.push_back(bestPosition);
         m_lastApplied = 1;
         m_unreadableStreak = 0;
         m_pendingRepeats = 0;

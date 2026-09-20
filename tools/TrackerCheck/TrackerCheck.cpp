@@ -184,6 +184,38 @@ int main() {
         Expect("history cleared", tracker.Ply() == 0, "");
     }
 
+    std::printf("\na misread square does not stop the game being followed\n");
+    {
+        // The reason this matters: template matching gets the odd square wrong,
+        // and under an exact-match rule one wrong square meant no move ever
+        // explained the board again and tracking froze for the whole session.
+        GameTracker tracker;
+
+        char board[64];
+        BoardFromFen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1", board);
+        board[1] = ' '; // b8 knight dropped, nowhere near the move that was played.
+
+        const TrackerOutcome outcome = tracker.Observe(board);
+        Expect("1. e4 read with a square missing", outcome == TrackerOutcome::Advanced,
+               OutcomeName(outcome));
+        Expect("and the move recorded is still e2e4",
+               !tracker.History().empty() && tracker.History().back().uci == "e2e4",
+               tracker.History().empty() ? "none" : tracker.History().back().uci);
+        Expect("the tracked board is the real one, not the misread one",
+               tracker.Position().ToFen().rfind("rnbqkbnr/pppppppp", 0) == 0,
+               tracker.Position().ToFen());
+
+        // Noise on a board where nothing moved must not be read as a move.
+        char quiet[64];
+        BoardFromFen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1", quiet);
+        quiet[6] = ' '; // g8 knight dropped this time.
+
+        const TrackerOutcome second = tracker.Observe(quiet);
+        Expect("a dropped square alone is not a move", second == TrackerOutcome::Unchanged,
+               OutcomeName(second));
+        Expect("still one ply in", tracker.Ply() == 1, std::to_string(tracker.Ply()));
+    }
+
     std::printf("\nframes that explain nothing are rejected\n");
     {
         GameTracker tracker;

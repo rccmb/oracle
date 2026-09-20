@@ -399,41 +399,51 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                 observedRows[row] = rowStr;
             }
 
+            // A board has been scanned, whatever it turned out to say. The
+            // preview is gated on this, and gating it on the tracker accepting
+            // the frame instead meant one unreadable frame blanked the whole
+            // analysis window until the tracker happened to agree again.
+            g_noBoard = false;
+
             char observed[64];
-            if (BuildObservedBoard(observedRows, g_orientation, observed)) {
-                const TrackerOutcome outcome = tracker.Observe(observed);
+            const bool observationUsable = BuildObservedBoard(observedRows, g_orientation, observed);
+            const TrackerOutcome outcome = observationUsable
+                ? tracker.Observe(observed)
+                : TrackerOutcome::Unreadable;
 
-                if (outcome != TrackerOutcome::Unreadable) {
-                    // The board shown to the user is the tracked position, not
-                    // the raw read of the screen, so a square misread for one
-                    // frame no longer flickers in the preview.
-                    std::vector<std::string> trackedRows(8, std::string(8, ' '));
-                    for (int fenRank = 0; fenRank < 8; ++fenRank) {
-                        for (int file = 0; file < 8; ++file) {
-                            const int rowIndex = (g_orientation == 0) ? fenRank : (7 - fenRank);
-                            const int colIndex = (g_orientation == 0) ? file : (7 - file);
-                            trackedRows[rowIndex][colIndex] = tracker.Position().PieceAt(fenRank * 8 + file);
-                        }
+            if (outcome == TrackerOutcome::Unreadable) {
+                // Show what the detector is actually reading rather than freezing
+                // on the last agreed position. When the two disagree, seeing the
+                // raw read is what tells you which square is being misread.
+                std::lock_guard<std::mutex> publish(g_analysisStateMutex);
+                g_boardGridRows = observedRows;
+                if (tracker.UnreadableStreak() > 30) g_trackerInSync = false;
+            }
+            else {
+                // Once the tracker agrees, the preview shows the tracked
+                // position rather than the raw read, so a square misread for a
+                // single frame does not flicker in it.
+                std::vector<std::string> trackedRows(8, std::string(8, ' '));
+                for (int fenRank = 0; fenRank < 8; ++fenRank) {
+                    for (int file = 0; file < 8; ++file) {
+                        const int rowIndex = (g_orientation == 0) ? fenRank : (7 - fenRank);
+                        const int colIndex = (g_orientation == 0) ? file : (7 - file);
+                        trackedRows[rowIndex][colIndex] = tracker.Position().PieceAt(fenRank * 8 + file);
                     }
-
-                    const std::string trackedFen = tracker.Position().ToFen();
-                    const bool ours = (tracker.Position().SideToMove() == Color::White) == g_sfPlayWhite;
-
-                    std::lock_guard<std::mutex> publish(g_analysisStateMutex);
-                    g_boardGridRows = std::move(trackedRows);
-                    g_trackedFen = trackedFen;
-                    g_trackerPly = tracker.Ply();
-                    g_trackerInSync = true;
-                    g_sfMovesAreOurs = ours;
-                    g_sideToMove = (tracker.Position().SideToMove() == Color::White) ? 'w' : 'b';
-                    g_lastMoveUci = tracker.History().empty() ? std::string()
-                                                              : tracker.History().back().uci;
-                    g_noBoard = false;
                 }
-                else if (tracker.UnreadableStreak() > 30) {
-                    std::lock_guard<std::mutex> publish(g_analysisStateMutex);
-                    g_trackerInSync = false;
-                }
+
+                const std::string trackedFen = tracker.Position().ToFen();
+                const bool ours = (tracker.Position().SideToMove() == Color::White) == g_sfPlayWhite;
+
+                std::lock_guard<std::mutex> publish(g_analysisStateMutex);
+                g_boardGridRows = std::move(trackedRows);
+                g_trackedFen = trackedFen;
+                g_trackerPly = tracker.Ply();
+                g_trackerInSync = true;
+                g_sfMovesAreOurs = ours;
+                g_sideToMove = (tracker.Position().SideToMove() == Color::White) ? 'w' : 'b';
+                g_lastMoveUci = tracker.History().empty() ? std::string()
+                                                          : tracker.History().back().uci;
             }
 
             if (StockfishIsAlive()) {
