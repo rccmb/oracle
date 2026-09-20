@@ -160,6 +160,7 @@
     <ClCompile Include="Overlay.cpp" />
     <ClCompile Include="StockfishHandler.cpp" />
     <ClCompile Include="Utils.cpp" />
+    <ClCompile Include="BoardDetection.cpp" />
     <ClCompile Include="ChessboardDetection.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -180,6 +181,7 @@
     <ClInclude Include="StockfishHandler.h" />
     <ClInclude Include="Structs.h" />
     <ClInclude Include="Utils.h" />
+    <ClInclude Include="BoardDetection.h" />
     <ClInclude Include="ChessboardDetection.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

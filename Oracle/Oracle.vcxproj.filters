@@ -39,6 +39,9 @@
     <ClCompile Include="Overlay.cpp">
       <Filter>Source Files\Views</Filter>
     </ClCompile>
+    <ClCompile Include="BoardDetection.cpp">
+      <Filter>Source Files\Logic</Filter>
+    </ClCompile>
     <ClCompile Include="ChessboardDetection.cpp">
       <Filter>Source Files\Logic</Filter>
     </ClCompile>
@@ -88,6 +91,9 @@
   <ItemGroup>
     <ClInclude Include="Overlay.h">
       <Filter>Source Files\Views</Filter>
+    </ClInclude>
+    <ClInclude Include="BoardDetection.h">
+      <Filter>Source Files\Logic</Filter>
     </ClInclude>
     <ClInclude Include="ChessboardDetection.h">
       <Filter>Source Files\Logic</Filter>

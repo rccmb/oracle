@@ -6,6 +6,7 @@
 #include <iostream>
 #include <string>
 
+#include "BoardDetection.h"
 #include "ChessboardDetection.h"
 #include "Utils.h"
 #include "Globals.h"

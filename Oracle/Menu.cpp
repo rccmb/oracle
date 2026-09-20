@@ -1,5 +1,7 @@
 #include "Menu.h"
 
+#include <cstdio>
+
 ImFont* CHESSBOARD_FONT;
 ImFont* DEFAULT_FONT;
 
@@ -20,67 +22,163 @@ void ShowMenu(int imageWidth, int imageHeight) {
         return;
     }
 
-    /* SET USER SCREENSHOT. */
-    if (!g_userScreenshotReady) {
-        ImGui::TextColored(ImVec4(1, 0.5f, 0, 1), "You must take a screenshot before setting clicks.");
-        if (ImGui::Button("Take Screenshot")) {
-            g_userScreenshotColor = CaptureVirtualScreen();
-            if (!g_userScreenshotColor.empty()) {
-                cv::cvtColor(g_userScreenshotColor, g_userScreenshotGray, cv::COLOR_BGR2GRAY);
-                g_userScreenshotReady = true;
+    /* AUTOMATIC SETUP. */
+    static std::string autoSetupStatus;
+    static bool autoSetupFailed = false;
+
+    ImGui::Text("Automatic Setup");
+    ImGui::TextWrapped("Show the board at the starting position, then press Detect. "
+                       "Reference pieces are read from the starting rows, so the board "
+                       "must be untouched.");
+
+    if (ImGui::Button("Detect Board")) {
+        autoSetupStatus.clear();
+        autoSetupFailed = false;
+
+        cv::Mat capture = CaptureVirtualScreen();
+        std::optional<BoardCandidate> board = capture.empty()
+            ? std::nullopt
+            : DetectChessboard(capture);
+
+        cv::Vec3b darkPiece, lightPiece;
+        int orientation = -1;
+
+        if (!board) {
+            autoSetupFailed = true;
+            autoSetupStatus = "No board found. Make sure it is fully visible, then retry "
+                              "or use manual calibration below.";
+        }
+        else if (!EstimatePieceColors(capture, *board, darkPiece, lightPiece, orientation)) {
+            autoSetupFailed = true;
+            autoSetupStatus = "Board found, but the pieces could not be read. Reset to the "
+                              "starting position and retry.";
+        }
+        else {
+            g_userScreenshotColor = capture;
+            cv::cvtColor(g_userScreenshotColor, g_userScreenshotGray, cv::COLOR_BGR2GRAY);
+            g_userScreenshotReady = true;
+
+            g_boardRect = { board->rect.x, board->rect.y,
+                            board->rect.x + board->rect.width,
+                            board->rect.y + board->rect.height };
+
+            g_refBoardColor1Color = board->lightSquare;
+            g_refBoardColor2Color = board->darkSquare;
+            g_refBoardColor1 = LuminanceOf(board->lightSquare);
+            g_refBoardColor2 = LuminanceOf(board->darkSquare);
+
+            g_refBlackPieceColor = darkPiece;
+            g_refWhitePieceColor = lightPiece;
+            g_refBlackPiece = LuminanceOf(darkPiece);
+            g_refWhitePiece = LuminanceOf(lightPiece);
+            g_orientation = orientation;
+
+            ApplyDerivedSampleGeometry(*board);
+            UpdateDebugSamples();
+            UpdateCropRects();
+
+            GenerateReferencePieceCrops(g_userScreenshotColor, board->cellSize, board->cellSize);
+
+            // Everything the manual flow would have asked for is now known, so
+            // skip straight past its stages.
+            g_boardClicksReady = true;
+            g_clickStage = 2;
+            g_samplePointsSet = true;
+            g_cropRegionSet = true;
+            g_isConfiguringSamplePoints = false;
+            g_isConfiguringCropRegion = false;
+            g_isRescanning = false;
+            g_noBoard = false;
+            g_hasAnalysisStarted = true;
+
+            char summary[160];
+            std::snprintf(summary, sizeof(summary),
+                "Board at %dx%d, %d px squares, %s at the bottom. Analysis running.",
+                board->rect.width, board->rect.height, board->cellSize,
+                orientation == 0 ? "white" : "black");
+            autoSetupStatus = summary;
+        }
+    }
+
+    if (!autoSetupStatus.empty()) {
+        ImGui::TextWrapped("%s", autoSetupStatus.c_str());
+        if (autoSetupFailed) {
+            ImGui::TextColored(ImVec4(1, 0.5f, 0, 1), "Detection failed.");
+        }
+        else {
+            ImGui::TextColored(ImVec4(0, 1, 0, 1), "Detection succeeded.");
+        }
+    }
+
+    ImGui::Separator();
+
+    /* MANUAL CALIBRATION, kept as a fallback for boards automatic setup cannot read. */
+    if (ImGui::CollapsingHeader("Manual calibration")) {
+        /* SET USER SCREENSHOT. */
+        if (!g_userScreenshotReady) {
+            ImGui::TextColored(ImVec4(1, 0.5f, 0, 1), "You must take a screenshot before setting clicks.");
+            if (ImGui::Button("Take Screenshot")) {
+                g_userScreenshotColor = CaptureVirtualScreen();
+                if (!g_userScreenshotColor.empty()) {
+                    cv::cvtColor(g_userScreenshotColor, g_userScreenshotGray, cv::COLOR_BGR2GRAY);
+                    g_userScreenshotReady = true;
+                    g_clickStage = 0;
+                    g_viewFirstClick = { -1, -1, 0 };
+                    g_viewSecondClick = { -1, -1, 0 };
+                }
+            }
+            ImGui::Separator();
+        }
+
+        /* SET USER CLICKS. */
+        if (!g_boardClicksReady && g_userScreenshotReady) {
+            ImGui::Text("Click on the board using Ctrl+LMB to set corners:");
+            if (g_clickStage == 0) {
+                ImGui::TextColored(ImVec4(1, 1, 0, 1), "Waiting for FIRST click...");
+            }
+            else if (g_clickStage == 1) {
+                ImGui::TextColored(ImVec4(1, 1, 0, 1), "Waiting for SECOND click...");
+                ImGui::Text("First: (%d, %d)", g_viewFirstClick.x, g_viewFirstClick.y);
+            }
+            if (ImGui::Button("Reset Board Clicks")) {
                 g_clickStage = 0;
                 g_viewFirstClick = { -1, -1, 0 };
                 g_viewSecondClick = { -1, -1, 0 };
-            } 
-        }
-        ImGui::Separator();
-    }
-
-    /* SET USER CLICKS. */
-    if (!g_boardClicksReady && g_userScreenshotReady) {
-        ImGui::Text("Click on the board using Ctrl+LMB to set corners:");
-        if (g_clickStage == 0) {
-            ImGui::TextColored(ImVec4(1, 1, 0, 1), "Waiting for FIRST click...");
-        }
-        else if (g_clickStage == 1) {
-            ImGui::TextColored(ImVec4(1, 1, 0, 1), "Waiting for SECOND click...");
-            ImGui::Text("First: (%d, %d)", g_viewFirstClick.x, g_viewFirstClick.y);
-        }
-        if (ImGui::Button("Reset Board Clicks")) {
-            g_clickStage = 0;
-            g_viewFirstClick = { -1, -1, 0 };
-            g_viewSecondClick = { -1, -1, 0 };
-			g_clicks = { g_viewFirstClick, g_viewSecondClick };
-        }
-        if (g_clickStage == 2) {
-            if (ImGui::Button("Detect Board")) {
-                g_boardClicksReady = true;
-				g_clicks = { g_viewFirstClick, g_viewSecondClick };
-                DetectBoardDimensions();
-                g_isRescanning = false;
-                g_isConfiguringSamplePoints = true;
-                g_samplePointsSet = false;
-                g_refBoardColor1 = (int)g_clicks.first.grayscaleValue;
-                g_refBoardColor2 = (int)g_clicks.second.grayscaleValue;
+    			g_clicks = { g_viewFirstClick, g_viewSecondClick };
+            }
+            if (g_clickStage == 2) {
+                if (ImGui::Button("Detect From Clicks")) {
+                    g_boardClicksReady = true;
+    				g_clicks = { g_viewFirstClick, g_viewSecondClick };
+                    DetectBoardDimensions();
+                    g_isRescanning = false;
+                    g_isConfiguringSamplePoints = true;
+                    g_samplePointsSet = false;
+                    g_refBoardColor1 = (int)g_clicks.first.grayscaleValue;
+                    g_refBoardColor2 = (int)g_clicks.second.grayscaleValue;
                 
-                if (!g_userScreenshotColor.empty()) {
-                    if (g_viewFirstClick.y >= 0 && g_viewFirstClick.y < g_userScreenshotColor.rows &&
-                        g_viewFirstClick.x >= 0 && g_viewFirstClick.x < g_userScreenshotColor.cols) {
-                        g_refBoardColor1Color = g_userScreenshotColor.at<cv::Vec3b>(g_viewFirstClick.y, g_viewFirstClick.x);
-                    }
-                    if (g_viewSecondClick.y >= 0 && g_viewSecondClick.y < g_userScreenshotColor.rows &&
-                        g_viewSecondClick.x >= 0 && g_viewSecondClick.x < g_userScreenshotColor.cols) {
-                        g_refBoardColor2Color = g_userScreenshotColor.at<cv::Vec3b>(g_viewSecondClick.y, g_viewSecondClick.x);
+                    if (!g_userScreenshotColor.empty()) {
+                        if (g_viewFirstClick.y >= 0 && g_viewFirstClick.y < g_userScreenshotColor.rows &&
+                            g_viewFirstClick.x >= 0 && g_viewFirstClick.x < g_userScreenshotColor.cols) {
+                            g_refBoardColor1Color = g_userScreenshotColor.at<cv::Vec3b>(g_viewFirstClick.y, g_viewFirstClick.x);
+                        }
+                        if (g_viewSecondClick.y >= 0 && g_viewSecondClick.y < g_userScreenshotColor.rows &&
+                            g_viewSecondClick.x >= 0 && g_viewSecondClick.x < g_userScreenshotColor.cols) {
+                            g_refBoardColor2Color = g_userScreenshotColor.at<cv::Vec3b>(g_viewSecondClick.y, g_viewSecondClick.x);
+                        }
                     }
                 }
+                ImGui::Text("First: (%d, %d)  Second: (%d, %d)", g_viewFirstClick.x, g_viewFirstClick.y, g_viewSecondClick.x, g_viewSecondClick.y);
             }
-            ImGui::Text("First: (%d, %d)  Second: (%d, %d)", g_viewFirstClick.x, g_viewFirstClick.y, g_viewSecondClick.x, g_viewSecondClick.y);
+            ImGui::Separator();
         }
-        ImGui::Separator();
-    }
     
+    }
+
     /* CONFIGURATION RESET. */
     if (ImGui::Button("Rescan Board")) {
+        autoSetupStatus.clear();
+        autoSetupFailed = false;
         g_hasAnalysisStarted = false;
         g_isConfiguringSamplePoints = true;
         g_isRescanning = true;
@@ -129,93 +227,97 @@ void ShowMenu(int imageWidth, int imageHeight) {
         }
     }
 
-    /* SAMPLE POINT SETTINGS. */
-    // TODO: Implement debug sample grouping, for example: In lichess, one debug sample is not enough to get all of the pieces. 
-    // Certain pieces have different colors in certain positions.
-    // By using more than one debug sample groups, if tghe spot at the debug sample does not equal nor white nor black reference values:
-    // - We move to the next debug sample for that cell, doing so until we either find a match for black or white reference values.
-    ImGui::BeginDisabled(g_samplePointsSet || g_userScreenshotGray.empty() || !g_boardClicksReady);
-    ImGui::Separator();
-    ImGui::Text("Sample Point Parameters");
-    ImGui::Text("Adjust the sliders below to position sample points.");
+    /* SAMPLING GEOMETRY. Derived from the detected cell size; exposed for tuning. */
+    if (ImGui::CollapsingHeader("Advanced: sampling geometry")) {
+        /* SAMPLE POINT SETTINGS. */
+        // TODO: Implement debug sample grouping, for example: In lichess, one debug sample is not enough to get all of the pieces. 
+        // Certain pieces have different colors in certain positions.
+        // By using more than one debug sample groups, if tghe spot at the debug sample does not equal nor white nor black reference values:
+        // - We move to the next debug sample for that cell, doing so until we either find a match for black or white reference values.
+        ImGui::BeginDisabled(g_samplePointsSet || g_userScreenshotGray.empty() || !g_boardClicksReady);
+        ImGui::Separator();
+        ImGui::Text("Sample Point Parameters");
+        ImGui::Text("Adjust the sliders below to position sample points.");
     
-    static int prevPatchSize = g_debugPatchSize;
-    static int prevOffsetX = g_debugOffsetX;
-    static int prevOffsetY = g_debugOffsetY;
-    static int prevOffsetX2 = g_debugOffsetX2;
-    static int prevOffsetY2 = g_debugOffsetY2;
-    static int prevOffsetX3 = g_debugOffsetX3;
-    static int prevOffsetY3 = g_debugOffsetY3;
+        static int prevPatchSize = g_debugPatchSize;
+        static int prevOffsetX = g_debugOffsetX;
+        static int prevOffsetY = g_debugOffsetY;
+        static int prevOffsetX2 = g_debugOffsetX2;
+        static int prevOffsetY2 = g_debugOffsetY2;
+        static int prevOffsetX3 = g_debugOffsetX3;
+        static int prevOffsetY3 = g_debugOffsetY3;
 
-    ImGui::SliderInt("Patch Size", &g_debugPatchSize, 1, 64);
-    ImGui::SliderInt("Point 1 X Offset", &g_debugOffsetX, -64, 64);
-    ImGui::SliderInt("Point 1 Y Offset", &g_debugOffsetY, -64, 64);
-    ImGui::SliderInt("Point 2 X Offset", &g_debugOffsetX2, -64, 64);
-    ImGui::SliderInt("Point 2 Y Offset", &g_debugOffsetY2, -64, 64);
-    ImGui::SliderInt("Point 3 X Offset", &g_debugOffsetX3, -64, 64);
-    ImGui::SliderInt("Point 3 Y Offset", &g_debugOffsetY3, -64, 64);
-    if (ImGui::Button("Set Sample Points")) {
-        UpdateDebugSamples();
-        DetectPieceColorCoding((g_boardRect.right - g_boardRect.left) / 8, (g_boardRect.bottom - g_boardRect.top) / 8);
-        g_samplePointsSet = true;
-        g_isConfiguringCropRegion = true;
-        UpdateCropRects();
-    }
+        ImGui::SliderInt("Patch Size", &g_debugPatchSize, 1, 64);
+        ImGui::SliderInt("Point 1 X Offset", &g_debugOffsetX, -64, 64);
+        ImGui::SliderInt("Point 1 Y Offset", &g_debugOffsetY, -64, 64);
+        ImGui::SliderInt("Point 2 X Offset", &g_debugOffsetX2, -64, 64);
+        ImGui::SliderInt("Point 2 Y Offset", &g_debugOffsetY2, -64, 64);
+        ImGui::SliderInt("Point 3 X Offset", &g_debugOffsetX3, -64, 64);
+        ImGui::SliderInt("Point 3 Y Offset", &g_debugOffsetY3, -64, 64);
+        if (ImGui::Button("Set Sample Points")) {
+            UpdateDebugSamples();
+            DetectPieceColorCoding((g_boardRect.right - g_boardRect.left) / 8, (g_boardRect.bottom - g_boardRect.top) / 8);
+            g_samplePointsSet = true;
+            g_isConfiguringCropRegion = true;
+            UpdateCropRects();
+        }
     
-    if (!g_samplePointsSet && (prevPatchSize != g_debugPatchSize || prevOffsetX != g_debugOffsetX || prevOffsetY != g_debugOffsetY ||
-                               prevOffsetX2 != g_debugOffsetX2 || prevOffsetY2 != g_debugOffsetY2 ||
-                               prevOffsetX3 != g_debugOffsetX3 || prevOffsetY3 != g_debugOffsetY3)) {
-        UpdateDebugSamples();
-        prevPatchSize = g_debugPatchSize;
-        prevOffsetX = g_debugOffsetX;
-        prevOffsetY = g_debugOffsetY;
-        prevOffsetX2 = g_debugOffsetX2;
-        prevOffsetY2 = g_debugOffsetY2;
-        prevOffsetX3 = g_debugOffsetX3;
-        prevOffsetY3 = g_debugOffsetY3;
-    }
+        if (!g_samplePointsSet && (prevPatchSize != g_debugPatchSize || prevOffsetX != g_debugOffsetX || prevOffsetY != g_debugOffsetY ||
+                                   prevOffsetX2 != g_debugOffsetX2 || prevOffsetY2 != g_debugOffsetY2 ||
+                                   prevOffsetX3 != g_debugOffsetX3 || prevOffsetY3 != g_debugOffsetY3)) {
+            UpdateDebugSamples();
+            prevPatchSize = g_debugPatchSize;
+            prevOffsetX = g_debugOffsetX;
+            prevOffsetY = g_debugOffsetY;
+            prevOffsetX2 = g_debugOffsetX2;
+            prevOffsetY2 = g_debugOffsetY2;
+            prevOffsetX3 = g_debugOffsetX3;
+            prevOffsetY3 = g_debugOffsetY3;
+        }
 
-    ImGui::EndDisabled();
+        ImGui::EndDisabled();
 
-    /* CROP REGION SETTINGS. */
-    static int prevCropPatch = g_cropPatchSize;
-    static int prevCropOffX = g_cropOffsetX;
-    static int prevCropOffY = g_cropOffsetY;
+        /* CROP REGION SETTINGS. */
+        static int prevCropPatch = g_cropPatchSize;
+        static int prevCropOffX = g_cropOffsetX;
+        static int prevCropOffY = g_cropOffsetY;
 
-    ImGui::Separator();
-    ImGui::Text("Crop Region Parameters");
-    ImGui::BeginDisabled(!g_samplePointsSet || g_cropRegionSet);
+        ImGui::Separator();
+        ImGui::Text("Crop Region Parameters");
+        ImGui::BeginDisabled(!g_samplePointsSet || g_cropRegionSet);
     
-    int maxCropSize = 64;
-    if ((g_boardRect.right - g_boardRect.left) > 0) {
-        maxCropSize = (g_boardRect.right - g_boardRect.left) / 8;
-    }
-    if (g_cropPatchSize > maxCropSize) {
-        g_cropPatchSize = maxCropSize;
-    }
+        int maxCropSize = 64;
+        if ((g_boardRect.right - g_boardRect.left) > 0) {
+            maxCropSize = (g_boardRect.right - g_boardRect.left) / 8;
+        }
+        if (g_cropPatchSize > maxCropSize) {
+            g_cropPatchSize = maxCropSize;
+        }
 
-    ImGui::SliderInt("Crop Size", &g_cropPatchSize, 1, maxCropSize);
-    ImGui::SliderInt("Crop X Offset", &g_cropOffsetX, -64, 64);
-    ImGui::SliderInt("Crop Y Offset", &g_cropOffsetY, -64, 64);
+        ImGui::SliderInt("Crop Size", &g_cropPatchSize, 1, maxCropSize);
+        ImGui::SliderInt("Crop X Offset", &g_cropOffsetX, -64, 64);
+        ImGui::SliderInt("Crop Y Offset", &g_cropOffsetY, -64, 64);
 
-    if (!g_cropRegionSet && g_isConfiguringCropRegion && (prevCropPatch != g_cropPatchSize || prevCropOffX != g_cropOffsetX || prevCropOffY != g_cropOffsetY)) {
-        UpdateCropRects();
-        prevCropPatch = g_cropPatchSize;
-        prevCropOffX = g_cropOffsetX;
-        prevCropOffY = g_cropOffsetY;
-    }
+        if (!g_cropRegionSet && g_isConfiguringCropRegion && (prevCropPatch != g_cropPatchSize || prevCropOffX != g_cropOffsetX || prevCropOffY != g_cropOffsetY)) {
+            UpdateCropRects();
+            prevCropPatch = g_cropPatchSize;
+            prevCropOffX = g_cropOffsetX;
+            prevCropOffY = g_cropOffsetY;
+        }
 
-    if (ImGui::Button("Set Crop Region")) {
-        UpdateCropRects();
-        g_cropRegionSet = true;
-        g_isConfiguringCropRegion = false;
-        int cellW = (g_boardRect.right - g_boardRect.left) / 8;
-        int cellH = (g_boardRect.bottom - g_boardRect.top) / 8;
-        cv::Mat srcColor = g_userScreenshotReady && !g_userScreenshotColor.empty() ? g_userScreenshotColor : CaptureVirtualScreen();
-        GenerateReferencePieceCrops(srcColor, cellW, cellH);
-        g_hasAnalysisStarted = true;
+        if (ImGui::Button("Set Crop Region")) {
+            UpdateCropRects();
+            g_cropRegionSet = true;
+            g_isConfiguringCropRegion = false;
+            int cellW = (g_boardRect.right - g_boardRect.left) / 8;
+            int cellH = (g_boardRect.bottom - g_boardRect.top) / 8;
+            cv::Mat srcColor = g_userScreenshotReady && !g_userScreenshotColor.empty() ? g_userScreenshotColor : CaptureVirtualScreen();
+            GenerateReferencePieceCrops(srcColor, cellW, cellH);
+            g_hasAnalysisStarted = true;
+        }
+        ImGui::EndDisabled();
+
     }
-    ImGui::EndDisabled();
 
     ImGui::Separator();
     ImGui::Text("Analysis Settings");
