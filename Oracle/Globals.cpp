@@ -85,3 +85,8 @@ std::atomic<int> g_liveEvalCpWhite{ 0 };
 std::atomic<bool> g_liveEvalIsMate{ false };
 std::atomic<int> g_liveEvalMateInWhite{ 0 };
 std::atomic<int> g_liveEvalDepth{ 0 };
+
+std::string g_lastMoveVerdict = "";
+std::string g_lastMoveVerdictUci = "";
+int g_lastMoveLossCp = 0;
+bool g_lastMoveVerdictByUs = false;

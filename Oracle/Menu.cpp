@@ -421,6 +421,10 @@ void ShowMenu(int imageWidth, int imageHeight) {
             bool trackerInSync = true;
             bool movesAreOurs = true;
             char sideToMove = 0;
+            std::string moveVerdict;
+            std::string moveVerdictUci;
+            int moveVerdictLoss = 0;
+            bool moveVerdictByUs = false;
             {
                 std::lock_guard<std::mutex> snapshot(g_analysisStateMutex);
                 boardRows = g_boardGridRows;
@@ -430,6 +434,10 @@ void ShowMenu(int imageWidth, int imageHeight) {
                 trackerInSync = g_trackerInSync;
                 movesAreOurs = g_sfMovesAreOurs;
                 sideToMove = g_sideToMove;
+                moveVerdict = g_lastMoveVerdict;
+                moveVerdictUci = g_lastMoveVerdictUci;
+                moveVerdictLoss = g_lastMoveLossCp;
+                moveVerdictByUs = g_lastMoveVerdictByUs;
             }
 
             /* STOCKFISH RELATED. */
@@ -477,6 +485,16 @@ void ShowMenu(int imageWidth, int imageHeight) {
 
             if (!lastMoveUci.empty()) {
                 ImGui::Text("Last move: %s", lastMoveUci.c_str());
+                if (!moveVerdict.empty()) {
+                    const ImVec4 severity =
+                        (moveVerdict == "Blunder") ? ImVec4(1.0f, 0.30f, 0.30f, 1) :
+                        (moveVerdict == "Mistake") ? ImVec4(1.0f, 0.55f, 0.20f, 1) :
+                                                     ImVec4(0.95f, 0.85f, 0.25f, 1);
+                    ImGui::SameLine();
+                    ImGui::TextColored(severity, "%s %s, -%.2f",
+                        moveVerdictByUs ? "your" : "their",
+                        moveVerdict.c_str(), moveVerdictLoss / 100.0f);
+                }
             }
             if (!trackerInSync) {
                 ImGui::TextColored(ImVec4(1, 0.65f, 0.2f, 1),

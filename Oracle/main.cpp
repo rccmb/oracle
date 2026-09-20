@@ -4,6 +4,7 @@
 #include <opencv2/imgcodecs.hpp>
 #include <iostream>
 #include <cmath>
+#include <cstdio>
 #include <map>
 #include <string>
 #include <vector>
@@ -91,10 +92,59 @@ void RenderFrame() {
     // detection thread reallocates this vector and the strings inside it.
     std::vector<StockfishMove> bestMoves;
     bool movesAreOurs = true;
+    std::string moveVerdict;
+    std::string moveVerdictUci;
+    int moveVerdictLoss = 0;
+    bool moveVerdictByUs = false;
     {
         std::lock_guard<std::mutex> snapshot(g_analysisStateMutex);
         bestMoves = g_sfBestMoves;
         movesAreOurs = g_sfMovesAreOurs;
+        moveVerdict = g_lastMoveVerdict;
+        moveVerdictUci = g_lastMoveVerdictUci;
+        moveVerdictLoss = g_lastMoveLossCp;
+        moveVerdictByUs = g_lastMoveVerdictByUs;
+    }
+
+    /* BLUNDER CALLOUT. */
+    // Sits above the board, so the one thing most worth knowing does not require
+    // opening the menu to see.
+    if (!g_isRescanning && !moveVerdict.empty() &&
+        (g_boardRect.right - g_boardRect.left) > 0 && (g_boardRect.bottom - g_boardRect.top) > 0) {
+
+        const ImU32 severity =
+            (moveVerdict == "Blunder")  ? IM_COL32(200, 45, 45, 235) :
+            (moveVerdict == "Mistake")  ? IM_COL32(205, 120, 30, 235) :
+                                          IM_COL32(190, 170, 40, 235);
+
+        char callout[96];
+        std::snprintf(callout, sizeof(callout), "%s  %s  %s  -%.1f",
+            moveVerdictByUs ? "You" : "Opponent",
+            moveVerdict.c_str(),
+            moveVerdictUci.c_str(),
+            moveVerdictLoss / 100.0f);
+
+        const int cellHeight = (g_boardRect.bottom - g_boardRect.top) / 8;
+        const float fontSize = std::clamp(cellHeight * 0.34f, 13.0f, 30.0f);
+        const ImVec2 textSize = ImGui::GetFont()->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, callout);
+
+        const float padX = fontSize * 0.5f;
+        const float padY = fontSize * 0.28f;
+        const float boxWidth = textSize.x + padX * 2.0f;
+        const float boxHeight = textSize.y + padY * 2.0f;
+
+        const float centerX = (float)(g_boardRect.left + g_boardRect.right) * 0.5f;
+        float boxTop = (float)g_boardRect.top - boxHeight - 8.0f;
+        // Dropped below the board when there is no room above it.
+        if (boxTop < 4.0f) boxTop = (float)g_boardRect.bottom + 8.0f;
+
+        const ImVec2 boxMin(centerX - boxWidth * 0.5f, boxTop);
+        const ImVec2 boxMax(boxMin.x + boxWidth, boxTop + boxHeight);
+
+        draw_list->AddRectFilled(boxMin, boxMax, severity, boxHeight * 0.22f);
+        draw_list->AddText(ImGui::GetFont(), fontSize,
+            ImVec2(boxMin.x + padX, boxMin.y + padY),
+            IM_COL32(255, 255, 255, 255), callout);
     }
 
     if (!g_isRescanning && movesAreOurs && !bestMoves.empty() && !g_isConfiguringCropRegion && !g_isConfiguringSamplePoints &&

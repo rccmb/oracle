@@ -128,3 +128,9 @@ extern std::atomic<int> g_liveEvalCpWhite;
 extern std::atomic<bool> g_liveEvalIsMate;
 extern std::atomic<int> g_liveEvalMateInWhite;  // Positive when White is mating.
 extern std::atomic<int> g_liveEvalDepth;
+
+// What the last move cost whoever played it. Empty when the move was sound.
+extern std::string g_lastMoveVerdict;      // "Blunder", "Mistake" or "Inaccuracy".
+extern std::string g_lastMoveVerdictUci;   // The move being judged.
+extern int g_lastMoveLossCp;               // Centipawns lost by the side that moved.
+extern bool g_lastMoveVerdictByUs;         // Whether that side is the one being played.

@@ -21,6 +21,21 @@ double CompareEdges(const cv::Mat& a, const cv::Mat& b) {
     return cv::sum(diff)[0];
 }
 
+// One scale for comparing two evaluations, with mates pushed to the extremes so
+// that a faster mate still outranks a slower one. Always in White's terms.
+static int ComparableScore(bool isMate, int mateInWhite, int cpWhite) {
+    if (!isMate) return cpWhite;
+    return (mateInWhite > 0) ? (100000 - mateInWhite * 100)
+                             : (-100000 - mateInWhite * 100);
+}
+
+// The side to move named by a FEN.
+static bool ScoreSideToMoveIsWhite(const std::string& fen) {
+    const size_t space = fen.find(' ');
+    if (space == std::string::npos || space + 1 >= fen.size()) return true;
+    return fen[space + 1] != 'b';
+}
+
 bool BuildObservedBoard(const std::vector<std::string>& rows, int orientation, char out[64]) {
     if (rows.size() != 8) return false;
 
@@ -193,6 +208,14 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
     // The game itself, followed across frames.
     GameTracker tracker;
 
+    // What the position was worth the last time a search settled, and who was to
+    // move in it. Comparing that against the next settled score is what turns an
+    // evaluation into a judgement about the move that was played.
+    int previousEvaluatedPly = -1;
+    int previousScore = 0;
+    bool previousWhiteToMove = true;
+    int previousVerdictPly = -1;
+
     // Continuous analysis loop.
     while(true) {
         while (g_hasAnalysisStarted) {
@@ -203,6 +226,8 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                 tracker.Reset();
                 previousFrameColor.release();
                 g_liveEvalValid.store(false);
+                previousEvaluatedPly = -1;
+                previousVerdictPly = -1;
 
                 std::lock_guard<std::mutex> publish(g_analysisStateMutex);
                 g_trackedFen = tracker.Position().ToFen();
@@ -413,21 +438,84 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
 
             if (StockfishIsAlive()) {
                 std::string fen;
+                std::string movePlayed;
+                int plyNow = 0;
                 {
                     std::lock_guard<std::mutex> snapshot(g_analysisStateMutex);
                     fen = g_trackedFen;
+                    plyNow = g_trackerPly;
+                    movePlayed = g_lastMoveUci;
                 }
 
                 static std::string lastQueriedFen;
                 if (!fen.empty() && fen != lastQueriedFen) {
+                    const bool whiteToMoveHere = ScoreSideToMoveIsWhite(fen);
+
                     // The engine call blocks, so it runs outside the lock and only
                     // its result is published.
                     std::vector<StockfishMove> moves =
                         GetBestMoves(fen, g_sfElo, g_sfNumberMoves, g_sfMoveDepth);
 
+                    // What the position is worth now that the search has settled,
+                    // on one scale that puts mates at the extremes so a move can
+                    // be compared against the one before it.
+                    const int scoreNow = ComparableScore(
+                        g_liveEvalIsMate.load(), g_liveEvalMateInWhite.load(), g_liveEvalCpWhite.load());
+
+                    // Attribute the change to whoever moved. Analysing both sides'
+                    // turns is what makes this possible: the position before their
+                    // move and the position after it have both been evaluated.
+                    std::string verdict;
+                    int lossCp = 0;
+                    bool byUs = false;
+
+                    if (previousEvaluatedPly >= 0 && plyNow == previousEvaluatedPly + 1 &&
+                        g_liveEvalValid.load()) {
+                        // Positive means the side that moved is worse off than
+                        // before. Scores are in White's terms, so Black's loss is
+                        // the same difference the other way round.
+                        lossCp = previousWhiteToMove
+                            ? (previousScore - scoreNow)
+                            : (scoreNow - previousScore);
+
+                        // A game already decided does not get worse in a way worth
+                        // calling out: going from mate in two to mate in five is
+                        // not a blunder.
+                        const bool alreadyDecided =
+                            (previousScore > 1500 && scoreNow > 1500) ||
+                            (previousScore < -1500 && scoreNow < -1500);
+
+                        if (!alreadyDecided) {
+                            if (lossCp >= 300) verdict = "Blunder";
+                            else if (lossCp >= 150) verdict = "Mistake";
+                            else if (lossCp >= 80) verdict = "Inaccuracy";
+                        }
+
+                        byUs = (previousWhiteToMove == g_sfPlayWhite);
+                    }
+
+                    previousEvaluatedPly = plyNow;
+                    previousScore = scoreNow;
+                    previousWhiteToMove = whiteToMoveHere;
+
                     std::lock_guard<std::mutex> publish(g_analysisStateMutex);
                     g_sfBestMoves = std::move(moves);
                     lastQueriedFen = fen;
+
+                    if (!verdict.empty()) {
+                        g_lastMoveVerdict = verdict;
+                        g_lastMoveLossCp = lossCp;
+                        g_lastMoveVerdictByUs = byUs;
+                        g_lastMoveVerdictUci = movePlayed;
+                    }
+                    else if (plyNow != previousVerdictPly) {
+                        // A sound move clears the previous callout rather than
+                        // leaving it on screen for the rest of the game.
+                        g_lastMoveVerdict.clear();
+                        g_lastMoveLossCp = 0;
+                        g_lastMoveVerdictUci.clear();
+                    }
+                    previousVerdictPly = plyNow;
                 }
             }
         }
