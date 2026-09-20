@@ -157,6 +157,47 @@ The largest module by line count. Renders the complete ImGui interface using two
 
 ### Computer Vision Pipeline
 
+#### `ChessRules.h / ChessRules.cpp` - The Rules
+
+Positions, legal move generation, FEN in and out. Depends on nothing but the
+standard library and knows nothing about screens or OpenCV. Squares are indexed
+in FEN reading order, 0 for a8 through 63 for h1, which matches the order a
+detected grid is walked in, so no second coordinate convention is needed.
+
+Proven by `tools/PerftCheck` against the published perft suite: six positions,
+thirty-two counts, covering en passant, under-promotion, castling through an
+attacked square, pinned pieces and rights lost to a captured rook.
+
+---
+
+#### `GameTracker.h / GameTracker.cpp` - Following the Game
+
+Holds the position and reconciles each observed board against it.
+
+| Outcome | Meaning |
+|---|---|
+| `Unchanged` | The board matches the position already held |
+| `Advanced` | One or two legal moves account for the change |
+| `Restarted` | The starting position: a new game |
+| `TookBack` | An earlier position; the moves after it are dropped |
+| `Adopted` | Resynchronised onto a position that could not be reached |
+| `Unreadable` | Nothing explains the frame; the held position stands |
+
+The search runs one ply, then two, then the starting position, then the history.
+Two plies matter because a premove, or simply a busy machine, produces a frame in
+which both sides have moved. A board that stays unexplained is held rather than
+believed, and adopted only once it has persisted; side to move is then found by
+elimination, since the side **not** to move cannot be standing in check.
+
+This is what makes the rest correct rather than lucky. A position carried forward
+knows its own castling rights, en passant square and clocks, none of which are
+visible on a board, and a misread square fails to match any legal move instead of
+quietly becoming a plausible wrong position.
+
+`tools/TrackerCheck` covers each outcome against hand written FENs.
+
+---
+
 #### `BoardDetection.h / BoardDetection.cpp` - Automatic Setup
 
 Locates a chessboard anywhere in a desktop capture with no user input, and reads

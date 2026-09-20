@@ -29,6 +29,10 @@
 - **One-Click Setup** - Finds the board on screen by itself, along with both square colours, both piece colours and the orientation. No clicking corners, no sliders.
 - **Real-Time Screen Capture** - Watches the board for changes, no browser extension or plugin needed.
 - **Multi-Monitor and High-DPI** - Per-monitor DPI aware, and the board can sit on any display.
+- **Follows the Game** - Tracks the real position across moves rather than re-reading the board each frame, so castling, en passant, takebacks and premoves are all handled, and a frame caught mid-animation is rejected instead of believed.
+- **Numbered Moves and Arrows** - Every suggestion is drawn on the board, ranked and colour-coded by evaluation.
+- **Live Evaluation Bar** - Glides as the search deepens instead of jumping when it finishes.
+- **Blunder Callouts** - Says what the last move cost, for either side, above the board.
 - **Piece Recognition** - Identifies pieces using chamfer distance matching against reference images generated during calibration.
 - **Stockfish Integration** - Communicates with a bundled Stockfish engine via the UCI protocol to compute the best moves in real time.
 - **Transparent Overlay** - Renders a DirectX 11 overlay on top of your screen, drawing the detected board rectangle and configuration guides without blocking your view.
@@ -55,13 +59,21 @@ original flow: screenshot, `Ctrl + LMB` on a8 then b8, and the sampling sliders.
 
 ### 2. Analysis
 
-- A background thread continuously captures frames and scans each cell for occupancy (brightness comparison against reference values).
-- Occupied cells are matched against reference piece templates using **Canny edge detection + chamfer distance transforms**.
-- The detected board state is converted to a **FEN string** and sent to Stockfish.
-- Stockfish returns the best moves, which are displayed color-coded in the overlay:
-  - 🟢 **Green** - Advantage (positive centipawn score)
-  - 🟡 **Yellow** - Balanced (neutral score)
-  - 🔴 **Red** - Disadvantage (negative centipawn score)
+- A background thread captures the board, skipping frames in which nothing
+  changed, and reads each square by template matching.
+- What it read is an **observation, not an answer**. Oracle asks which of the
+  moves legal in the position it already holds explains that board. Almost always
+  exactly one does. When none does, the frame is rejected, so a piece caught
+  mid-animation or a square behind a dialog costs nothing.
+- Because the position is carried forward rather than rebuilt, castling rights,
+  en passant and the move clocks are simply correct, and castling, promotion,
+  takebacks, premoves and a new game are all recognised for what they are.
+- The position goes to Stockfish, whichever side is to move. Suggestions are
+  offered on your turn; analysing the opponent's is what lets Oracle say what
+  their move cost them.
+- Results are drawn on the board: an arrow and a rank number per suggestion,
+  coloured by evaluation, with an evaluation bar and a callout when the last move
+  was an inaccuracy, a mistake or a blunder.
 
 ## Prerequisites
 
@@ -137,6 +149,8 @@ oracle/
 ├── Oracle/                        # Main source directory
 │   ├── main.cpp                   # Entry point, overlay window, render loop
 │   ├── BoardDetection.cpp/h       # Automatic board, colour and orientation search
+│   ├── ChessRules.cpp/h           # Positions, legal moves, FEN
+│   ├── GameTracker.cpp/h          # Follows the game across frames
 │   ├── ChessboardDetection.cpp/h  # Board scanning, FEN generation, piece matching
 │   ├── StockfishHandler.cpp/h     # UCI protocol, engine lifecycle
 │   ├── InitialConfiguration.cpp/h # Calibration: clicks, samples, crop, references
@@ -152,7 +166,10 @@ oracle/
 │   ├── Oracle.sln                 # Visual Studio solution
 │   └── Oracle.vcxproj             # Visual Studio project
 ├── tools/
-│   └── BoardDetectionCheck/       # Offline check for the board detector
+│   ├── BoardDetectionCheck/       # Offline check for the board detector
+│   ├── FenCheck/                  # Castling rights and position validation
+│   ├── PerftCheck/                # Move generator, against the perft suite
+│   └── TrackerCheck/              # Game tracking across frames
 └── OpenCV/                        # OpenCV installation (not tracked in git)
 ```
 
