@@ -9,12 +9,20 @@ std::vector<StockfishMove> g_sfPreviousMoves;
 
 int g_sfElo = 1320;
 bool g_sfPlayWhite = true;
-int g_sfMoveDepth = 1;
-int g_sfNumberMoves = 1;
+
+// Full strength by default. Oracle used to ship UCI_LimitStrength on at the
+// engine's floor of 1320 Elo with a depth of 1, so out of the box it asked a
+// deliberately weakened Stockfish for a one ply search.
+bool g_sfLimitStrength = false;
+int g_sfMoveDepth = 15;
+int g_sfNumberMoves = 3;
 
 static PROCESS_INFORMATION g_sfProcInfo = { 0 };
 static HANDLE g_sfThread = nullptr;
 static bool g_sfStopThread = false;
+
+// How long a liveness answer stays good for before the engine is probed again.
+static constexpr DWORD kLivenessProbeIntervalMs = 2000;
 
 // TODO: Documentation.
 static void SendCommand(const std::string& cmd) {
@@ -87,6 +95,20 @@ void LaunchStockfish(const std::string& path = "stockfish/stockfish.exe") {
 bool StockfishIsAlive() {
     if (!g_sfRunning) return false;
 
+    // Both the render loop and the detection loop ask this every pass, which was
+    // an isready and a blocking read of up to half a second each time, on the
+    // same pipe and mutex the search uses. The engine's liveness does not change
+    // at that rate, so the answer is cached between probes.
+    static DWORD lastProbeTick = 0;
+    static bool lastResult = false;
+
+    const DWORD now = GetTickCount();
+    if (lastProbeTick != 0 && (now - lastProbeTick) < kLivenessProbeIntervalMs) {
+        return lastResult;
+    }
+    lastProbeTick = now;
+    lastResult = false;
+
     std::lock_guard<std::mutex> lock(g_sfMutex);
     SendCommand("isready\n");
 
@@ -100,6 +122,7 @@ bool StockfishIsAlive() {
             buffer[bytesRead] = '\0';
             response += buffer;
             if (response.find("readyok") != std::string::npos) {
+                lastResult = true;
                 return true;
             }
         }
@@ -116,45 +139,19 @@ std::vector<StockfishMove> GetBestMoves(const std::string& fen, int elo, int top
     if (!g_sfRunning || (g_sfPlayWhite && g_sideToMove == 'b') || (!g_sfPlayWhite && g_sideToMove == 'w')) return g_sfPreviousMoves;
 
     std::lock_guard<std::mutex> lock(g_sfMutex);
-    SendCommand("setoption name UCI_LimitStrength value true\n");
-    SendCommand("setoption name UCI_Elo value " + std::to_string(elo) + "\n");
+    SendCommand("setoption name UCI_LimitStrength value " +
+        std::string(g_sfLimitStrength ? "true" : "false") + "\n");
+    if (g_sfLimitStrength) {
+        SendCommand("setoption name UCI_Elo value " + std::to_string(elo) + "\n");
+    }
     SendCommand("setoption name MultiPV value " + std::to_string(topN) + "\n");
-    
+
     SendCommand("position fen " + fen + "\n");
 
-    SendCommand("eval\n");
-    {
-        char bufferEval[512];
-        DWORD bytesReadEval = 0;
-        std::string responseEval;
-
-        DWORD startTickEval = GetTickCount();
-        bool evalDone = false;
-
-        while (GetTickCount() - startTickEval < 2000 && !evalDone) {
-            if (ReadFile(g_sfOutput, bufferEval, sizeof(bufferEval) - 1, &bytesReadEval, nullptr) && bytesReadEval > 0) {
-                bufferEval[bytesReadEval] = '\0';
-                responseEval.append(bufferEval);
-
-                std::string line;
-                size_t pos;
-                while ((pos = responseEval.find('\n')) != std::string::npos) {
-                    line = responseEval.substr(0, pos);
-                    responseEval.erase(0, pos + 1);
-
-                    // TODO: Improve upon this.
-                    if (line.rfind("Final evaluation", 0) == 0) {
-                        evalDone = true;
-                        break;
-                    }
-                }
-            }
-            else {
-                Sleep(10);
-            }
-        }
-    }
-
+    // An "eval" round-trip used to sit here, scanning up to two seconds for the
+    // "Final evaluation" line and then discarding what it read. It delayed every
+    // position and, because it consumed from the same pipe, could swallow info
+    // lines belonging to the search that followed.
     SendCommand("go depth " + std::to_string(depth) + "\n");
 
     char buffer[512];

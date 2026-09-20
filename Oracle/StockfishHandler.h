@@ -17,6 +17,7 @@ extern bool g_sfRunning;
 
 extern int g_sfElo;
 extern bool g_sfPlayWhite;
+extern bool g_sfLimitStrength;
 extern int g_sfMoveDepth;
 extern int g_sfNumberMoves;
 

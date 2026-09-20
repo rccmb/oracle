@@ -434,7 +434,10 @@ void ShowMenu(int imageWidth, int imageHeight) {
                 ImGui::TextColored(colDead, "DEAD");
             }
 
+            ImGui::Checkbox("Limit engine strength", &g_sfLimitStrength);
+            ImGui::BeginDisabled(!g_sfLimitStrength);
             ImGui::SliderInt("Engine ELO", &g_sfElo, 1320, 3190);
+            ImGui::EndDisabled();
             ImGui::SliderInt("Engine Move Depth", &g_sfMoveDepth, 1, 30);
             ImGui::SliderInt("Number of Moves", &g_sfNumberMoves, 1, 10);
             ImGui::SliderFloat("Match Threshold", &g_matchThreshold, 0.10f, 1.0f, "%.2f");
