@@ -39,6 +39,9 @@
     <ClCompile Include="Overlay.cpp">
       <Filter>Source Files\Views</Filter>
     </ClCompile>
+    <ClCompile Include="GameTracker.cpp">
+      <Filter>Source Files\Logic</Filter>
+    </ClCompile>
     <ClCompile Include="ChessRules.cpp">
       <Filter>Source Files\Logic</Filter>
     </ClCompile>
@@ -94,6 +97,9 @@
   <ItemGroup>
     <ClInclude Include="Overlay.h">
       <Filter>Source Files\Views</Filter>
+    </ClInclude>
+    <ClInclude Include="GameTracker.h">
+      <Filter>Source Files\Logic</Filter>
     </ClInclude>
     <ClInclude Include="ChessRules.h">
       <Filter>Source Files\Logic</Filter>

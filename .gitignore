@@ -1075,3 +1075,8 @@ tools/PerftCheck/*.exe
 tools/PerftCheck/*.obj
 tools/PerftCheck/*.pdb
 tools/PerftCheck/*.ilk
+
+tools/TrackerCheck/*.exe
+tools/TrackerCheck/*.obj
+tools/TrackerCheck/*.pdb
+tools/TrackerCheck/*.ilk

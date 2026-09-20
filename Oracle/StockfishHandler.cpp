@@ -191,7 +191,10 @@ bool StockfishIsAlive() {
 
 std::vector<StockfishMove> GetBestMoves(const std::string& fen, int elo, int topN = 5, int depth = 15) {
     std::vector<StockfishMove> moves;
-    if (!g_sfRunning || (g_sfPlayWhite && g_sideToMove == 'b') || (!g_sfPlayWhite && g_sideToMove == 'w')) return g_sfPreviousMoves;
+    // Every tracked position is analysed, whoever is to move. The interface
+    // decides whether to offer the moves as suggestions; an evaluation of the
+    // opponent's turn is what makes it possible to say what their move cost.
+    if (!g_sfRunning) return g_sfPreviousMoves;
 
     g_sfNoLegalMoves = false;
 

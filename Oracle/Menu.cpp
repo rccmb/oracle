@@ -90,6 +90,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
             g_isConfiguringCropRegion = false;
             g_isRescanning = false;
             g_noBoard = false;
+            g_trackerResetRequested = true;
             g_hasAnalysisStarted = true;
 
             char summary[160];
@@ -180,6 +181,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
     if (ImGui::Button("Rescan Board")) {
         autoSetupStatus.clear();
         autoSetupFailed = false;
+        g_trackerResetRequested = true;
         g_hasAnalysisStarted = false;
         g_isConfiguringSamplePoints = true;
         g_isRescanning = true;
@@ -414,10 +416,20 @@ void ShowMenu(int imageWidth, int imageHeight) {
             // reallocating them mid frame.
             std::vector<std::string> boardRows;
             std::vector<StockfishMove> bestMoves;
+            std::string lastMoveUci;
+            int trackerPly = 0;
+            bool trackerInSync = true;
+            bool movesAreOurs = true;
+            char sideToMove = 0;
             {
                 std::lock_guard<std::mutex> snapshot(g_analysisStateMutex);
                 boardRows = g_boardGridRows;
                 bestMoves = g_sfBestMoves;
+                lastMoveUci = g_lastMoveUci;
+                trackerPly = g_trackerPly;
+                trackerInSync = g_trackerInSync;
+                movesAreOurs = g_sfMovesAreOurs;
+                sideToMove = g_sideToMove;
             }
 
             /* STOCKFISH RELATED. */
@@ -451,6 +463,23 @@ void ShowMenu(int imageWidth, int imageHeight) {
             ImGui::SameLine();
             if (ImGui::RadioButton("Playing as Black", g_sfPlayWhite == 0)) {
                 g_sfPlayWhite = 0;
+            }
+
+            ImGui::Separator();
+
+            /* GAME STATE. */
+            ImGui::Text("Move %d, %s to move", trackerPly / 2 + 1,
+                sideToMove == 'w' ? "white" : "black");
+            ImGui::SameLine();
+            if (movesAreOurs) ImGui::TextDisabled("(yours)");
+            else ImGui::TextDisabled("(theirs)");
+
+            if (!lastMoveUci.empty()) {
+                ImGui::Text("Last move: %s", lastMoveUci.c_str());
+            }
+            if (!trackerInSync) {
+                ImGui::TextColored(ImVec4(1, 0.65f, 0.2f, 1),
+                    "Board does not match the tracked game.");
             }
 
             ImGui::Separator();

@@ -21,30 +21,28 @@ double CompareEdges(const cv::Mat& a, const cv::Mat& b) {
     return cv::sum(diff)[0];
 }
 
-std::string BoardToFEN() {
-    if (g_boardGridRows.size() != 8) return std::string();
+bool BuildObservedBoard(const std::vector<std::string>& rows, int orientation, char out[64]) {
+    if (rows.size() != 8) return false;
 
     // Re-order the detected grid into FEN order first: rank 8 at index 0 down to
-    // rank 1 at index 7, files a to h. Castling rights and the legality checks
-    // below all need to name actual squares, which the raw grid cannot do
-    // because its orientation depends on which way round the board is drawn.
-    char squares[8][8];
+    // rank 1 at index 7, files a to h. Everything downstream names actual
+    // squares, which the raw grid cannot do because its orientation depends on
+    // which way round the board is drawn.
     for (int fenRank = 0; fenRank < 8; ++fenRank) {
-        const int rowIndex = (g_orientation == 0) ? fenRank : (7 - fenRank);
+        const int rowIndex = (orientation == 0) ? fenRank : (7 - fenRank);
         for (int file = 0; file < 8; ++file) {
-            const int colIndex = (g_orientation == 0) ? file : (7 - file);
+            const int colIndex = (orientation == 0) ? file : (7 - file);
             char piece = ' ';
-            if (rowIndex >= 0 && rowIndex < (int)g_boardGridRows.size() &&
-                colIndex >= 0 && colIndex < (int)g_boardGridRows[rowIndex].size()) {
-                piece = g_boardGridRows[rowIndex][colIndex];
+            if (rowIndex >= 0 && rowIndex < (int)rows.size() &&
+                colIndex >= 0 && colIndex < (int)rows[rowIndex].size()) {
+                piece = rows[rowIndex][colIndex];
             }
-            squares[fenRank][file] = (piece == '\0') ? ' ' : piece;
+            out[fenRank * 8 + file] = (piece == '\0') ? ' ' : piece;
         }
     }
 
-    auto at = [&](int rank, int file) { return squares[rank][file]; };
+    auto at = [&](int rank, int file) { return out[rank * 8 + file]; };
 
-    // Rank 8 is index 0, rank 1 is index 7.
     const int kRank8 = 0;
     const int kRank1 = 7;
 
@@ -61,9 +59,7 @@ std::string BoardToFEN() {
 
             // A pawn cannot stand on the first or last rank; it would have
             // promoted. Seeing one means a square was misread.
-            if ((piece == 'P' || piece == 'p') && (rank == kRank8 || rank == kRank1)) {
-                return std::string();
-            }
+            if ((piece == 'P' || piece == 'p') && (rank == kRank8 || rank == kRank1)) return false;
 
             if (piece >= 'A' && piece <= 'Z') {
                 ++whitePieces;
@@ -78,17 +74,34 @@ std::string BoardToFEN() {
         }
     }
 
-    // Exactly one king each, and no more material than a side can hold.
-    if (whiteKings != 1 || blackKings != 1) return std::string();
-    if (whitePieces > 16 || blackPieces > 16) return std::string();
-    if (whitePawns > 8 || blackPawns > 8) return std::string();
+    if (whiteKings != 1 || blackKings != 1) return false;
+    if (whitePieces > 16 || blackPieces > 16) return false;
+    if (whitePawns > 8 || blackPawns > 8) return false;
 
     // Kings cannot stand next to each other. Cheap, and a reliable sign that a
     // square was read wrong.
     if (std::abs(whiteKingRank - blackKingRank) <= 1 &&
         std::abs(whiteKingFile - blackKingFile) <= 1) {
-        return std::string();
+        return false;
     }
+
+    return true;
+}
+
+std::string BoardToFEN() {
+    char board[64];
+    if (!BuildObservedBoard(g_boardGridRows, g_orientation, board)) return std::string();
+
+    char squares[8][8];
+    for (int rank = 0; rank < 8; ++rank) {
+        for (int file = 0; file < 8; ++file) squares[rank][file] = board[rank * 8 + file];
+    }
+
+    auto at = [&](int rank, int file) { return squares[rank][file]; };
+
+    // Rank 8 is index 0, rank 1 is index 7.
+    const int kRank8 = 0;
+    const int kRank1 = 7;
 
     std::ostringstream fen;
     for (int rank = 0; rank < 8; ++rank) {
@@ -110,10 +123,10 @@ std::string BoardToFEN() {
 
     // Castling rights are read off the board rather than assumed. Oracle used to
     // write "KQkq" unconditionally, which crashes Stockfish outright: claiming a
-    // right for a king that is not on its home square segfaults the engine, and
-    // so does claiming rights for a side with no rooks left. A king leaves e1 or
-    // e8 in most games well before mate, which is why the engine tended to die
-    // around the end of one.
+    // right for a side that has no rook to castle with segfaults the engine,
+    // because its setup scans the back rank for that rook and runs off the board.
+    // Rooks are gone in most endgames, which is why the engine tended to die
+    // around the end of a game rather than the middle of one.
     //
     // This over-grants in one case, a king that moved and came back, and that is
     // the safe direction: Stockfish discards a right it cannot use.
@@ -177,9 +190,27 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
 
     cv::Mat previousFrameColor;
 
+    // The game itself, followed across frames.
+    GameTracker tracker;
+
     // Continuous analysis loop.
     while(true) {
         while (g_hasAnalysisStarted) {
+            // A fresh detection means a different game, or at least a board the
+            // tracker has no business reconciling against the old one.
+            if (g_trackerResetRequested) {
+                g_trackerResetRequested = false;
+                tracker.Reset();
+                previousFrameColor.release();
+
+                std::lock_guard<std::mutex> publish(g_analysisStateMutex);
+                g_trackedFen = tracker.Position().ToFen();
+                g_trackerPly = 0;
+                g_trackerInSync = true;
+                g_lastMoveUci.clear();
+                g_sfBestMoves.clear();
+            }
+
             // Re-read the board every pass. These used to be computed once when
             // the thread started, so re-detecting a board of a different size, or
             // at a different place, had no effect until Oracle was restarted.
@@ -329,75 +360,63 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                 }
             }
 
-            // Detect changes and update board rows only when state changes.
-            bool changed = false;
-            if (g_detectedLetters.size() != g_prevLetterDrawQueue.size()) {
-                changed = true;
-            }
-            else {
-                char detectedSide = '\0';
-                int evidenceRank = 0;
 
-                for (size_t i = 0; i < g_detectedLetters.size(); ++i) {
-                    char curCh = g_detectedLetters[i];
-                    char prevCh = (i < g_prevLetterDrawQueue.size()) ? g_prevLetterDrawQueue[i] : ' ';
-
-                    if (curCh == prevCh)
-                        continue;
-
-                    // TODO: En passant detection. TWO PAWNS DISAPPEARED, ONE PAWN APPEARED.
-                    // TODO: Add support for when the user reverts the game. As in, if there is one more piece detected, we should do nothing, just keep scanning the board.
-                    // - We will have to keep the very last FEN, so that we know where to resume scanning the board for plays.
-                    // - Also verify the side switching problem, sometimes it's erroneous.
-
-					// Piece disappeared. Whoever was here, moved for this turn.
-                    if (prevCh != ' ' && curCh == ' ') {
-                        g_sideToMove = (prevCh >= 'A' && prevCh <= 'Z') ? 'b' : 'w';
-                        changed = true;
-                        break;
-                    }
-					// Piece appeared. Whoever is here, moved for this turn.
-                    else if (prevCh == ' ' && curCh != ' ') {
-                        g_sideToMove = (curCh >= 'A' && curCh <= 'Z') ? 'b' : 'w';
-                        changed = true;
-                        break;
-                    }
-                    // Piece changed. Promotion, capture or castling, whoever is here, moved for this turn.
-                    else if (prevCh != curCh) {
-                        g_sideToMove = (curCh >= 'A' && curCh <= 'Z') ? 'b' : 'w';
-                        changed = true;
-                        break;
-                    }
-                }
+            // Reconcile what was seen against the game so far. The frame is an
+            // observation, not an answer: the tracker decides which legal move,
+            // if any, explains it, and rejects the frame outright when none
+            // does. Animations and covered squares therefore cost nothing.
+            std::vector<std::string> observedRows(8);
+            for (int row = 0; row < 8; ++row) {
+                std::string rowStr;
+                rowStr.reserve(8);
+                for (int col = 0; col < 8; ++col) rowStr.push_back(g_detectedLetters[row * 8 + col]);
+                observedRows[row] = rowStr;
             }
 
-            if (changed) {
-                g_prevLetterDrawQueue = g_detectedLetters;
+            char observed[64];
+            if (BuildObservedBoard(observedRows, g_orientation, observed)) {
+                const TrackerOutcome outcome = tracker.Observe(observed);
 
-                // Build grid rows from detected letters.
-                std::vector<std::string> newRows(8);
-                for (int row = 0; row < 8; ++row) {
-                    std::string rowStr;
-                    rowStr.reserve(8);
-                    for (int col = 0; col < 8; ++col) {
-                        rowStr.push_back(g_detectedLetters[row * 8 + col]);
+                if (outcome != TrackerOutcome::Unreadable) {
+                    // The board shown to the user is the tracked position, not
+                    // the raw read of the screen, so a square misread for one
+                    // frame no longer flickers in the preview.
+                    std::vector<std::string> trackedRows(8, std::string(8, ' '));
+                    for (int fenRank = 0; fenRank < 8; ++fenRank) {
+                        for (int file = 0; file < 8; ++file) {
+                            const int rowIndex = (g_orientation == 0) ? fenRank : (7 - fenRank);
+                            const int colIndex = (g_orientation == 0) ? file : (7 - file);
+                            trackedRows[rowIndex][colIndex] = tracker.Position().PieceAt(fenRank * 8 + file);
+                        }
                     }
-                    newRows[row] = rowStr;
-                }
 
-                {
+                    const std::string trackedFen = tracker.Position().ToFen();
+                    const bool ours = (tracker.Position().SideToMove() == Color::White) == g_sfPlayWhite;
+
                     std::lock_guard<std::mutex> publish(g_analysisStateMutex);
-                    g_boardGridRows = std::move(newRows);
+                    g_boardGridRows = std::move(trackedRows);
+                    g_trackedFen = trackedFen;
+                    g_trackerPly = tracker.Ply();
+                    g_trackerInSync = true;
+                    g_sfMovesAreOurs = ours;
+                    g_sideToMove = (tracker.Position().SideToMove() == Color::White) ? 'w' : 'b';
+                    g_lastMoveUci = tracker.History().empty() ? std::string()
+                                                              : tracker.History().back().uci;
+                    g_noBoard = false;
                 }
-                g_noBoard = false;
+                else if (tracker.UnreadableStreak() > 30) {
+                    std::lock_guard<std::mutex> publish(g_analysisStateMutex);
+                    g_trackerInSync = false;
+                }
             }
 
             if (StockfishIsAlive()) {
-                // An empty FEN means the frame did not read as a legal position.
-                // Previously this returned the starting position instead, so a
-                // single misread square made Oracle confidently recommend 1.e4
-                // in the middlegame. Holding the last good result is honest.
-                std::string fen = BoardToFEN();
+                std::string fen;
+                {
+                    std::lock_guard<std::mutex> snapshot(g_analysisStateMutex);
+                    fen = g_trackedFen;
+                }
+
                 static std::string lastQueriedFen;
                 if (!fen.empty() && fen != lastQueriedFen) {
                     // The engine call blocks, so it runs outside the lock and only

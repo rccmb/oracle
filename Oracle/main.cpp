@@ -89,12 +89,14 @@ void RenderFrame() {
     // Draw the best move on the board. Copied out of the shared state first: the
     // detection thread reallocates this vector and the strings inside it.
     std::vector<StockfishMove> bestMoves;
+    bool movesAreOurs = true;
     {
         std::lock_guard<std::mutex> snapshot(g_analysisStateMutex);
         bestMoves = g_sfBestMoves;
+        movesAreOurs = g_sfMovesAreOurs;
     }
 
-    if (!g_isRescanning && !bestMoves.empty() && !g_isConfiguringCropRegion && !g_isConfiguringSamplePoints &&
+    if (!g_isRescanning && movesAreOurs && !bestMoves.empty() && !g_isConfiguringCropRegion && !g_isConfiguringSamplePoints &&
         (g_boardRect.right - g_boardRect.left) > 0 && (g_boardRect.bottom - g_boardRect.top) > 0) {
 
         const int cellWidth = (g_boardRect.right - g_boardRect.left) / 8;

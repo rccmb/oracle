@@ -97,5 +97,16 @@ extern bool g_noBoard;
 
 extern std::string g_lastValidFEN;
 
-// Detected side to move ('w' or 'b').
+// Side to move, taken from the tracked game rather than inferred from pixels.
 extern char g_sideToMove;
+
+// The tracked game, published for the interface.
+extern std::string g_trackedFen;   // Position the engine is being asked about.
+extern std::string g_lastMoveUci;  // Move that produced it, or empty.
+extern int g_trackerPly;           // Plies played so far.
+extern bool g_trackerInSync;       // False once the board has stopped making sense.
+extern bool g_sfMovesAreOurs;      // Whether the suggestions belong to the side being played.
+
+// Set by the interface when the board is detected again, so the thread starts a
+// fresh game rather than trying to reconcile the new board against the old one.
+extern bool g_trackerResetRequested;
