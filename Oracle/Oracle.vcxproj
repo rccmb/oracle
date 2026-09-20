@@ -161,6 +161,7 @@
     <ClCompile Include="StockfishHandler.cpp" />
     <ClCompile Include="Utils.cpp" />
     <ClCompile Include="BoardDetection.cpp" />
+    <ClCompile Include="ChessRules.cpp" />
     <ClCompile Include="ChessboardDetection.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -182,6 +183,7 @@
     <ClInclude Include="Structs.h" />
     <ClInclude Include="Utils.h" />
     <ClInclude Include="BoardDetection.h" />
+    <ClInclude Include="ChessRules.h" />
     <ClInclude Include="ChessboardDetection.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

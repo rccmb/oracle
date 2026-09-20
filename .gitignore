@@ -1069,3 +1069,9 @@ tools/FenCheck/*.obj
 tools/FenCheck/*.dll
 tools/FenCheck/*.pdb
 tools/FenCheck/*.ilk
+
+# Oracle: perft tool build output
+tools/PerftCheck/*.exe
+tools/PerftCheck/*.obj
+tools/PerftCheck/*.pdb
+tools/PerftCheck/*.ilk
