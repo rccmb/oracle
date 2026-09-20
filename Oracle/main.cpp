@@ -125,7 +125,7 @@ void RenderFrame() {
             moveVerdictLoss / 100.0f);
 
         const int cellHeight = (g_boardRect.bottom - g_boardRect.top) / 8;
-        const float fontSize = std::clamp(cellHeight * 0.34f, 13.0f, 30.0f);
+        const float fontSize = std::clamp(cellHeight * 0.20f, 12.0f, 20.0f);
         const ImVec2 textSize = ImGui::GetFont()->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, callout);
 
         const float padX = fontSize * 0.5f;
@@ -233,8 +233,8 @@ void RenderFrame() {
 
                 // Rank shows in weight and in opacity, so the best move reads as
                 // the best move without having to find its number first.
-                const float thickness = std::max(2.0f, cellSide * (0.10f - 0.018f * i));
-                const int alpha = std::max(70, 210 - 45 * i);
+                const float thickness = std::max(1.5f, cellSide * (0.055f - 0.009f * i));
+                const int alpha = std::max(60, 195 - 40 * i);
                 const ImU32 color = withAlpha(verdictColor(move), alpha);
 
                 const ImVec2 start = squareCenter(from);
@@ -250,17 +250,20 @@ void RenderFrame() {
                 // Both ends are pulled in: away from the piece being moved so it
                 // stays visible, and short of the centre of the target so the
                 // head does not bury whatever is standing there.
-                const float tailInset = cellSide * 0.26f;
-                const float headLength = cellSide * 0.34f;
+                const float tailInset = cellSide * 0.30f;
+                const float headLength = cellSide * 0.22f;
                 if (length <= tailInset + headLength) continue;
 
                 const ImVec2 shaftStart(start.x + dx * tailInset, start.y + dy * tailInset);
                 const ImVec2 shaftEnd(end.x - dx * headLength, end.y - dy * headLength);
 
+                // Rounded tail. AddLine has square ends, which read as ragged at
+                // these weights; a disc the width of the shaft closes it off.
+                draw_list->AddCircleFilled(shaftStart, thickness * 0.5f, color, 12);
                 draw_list->AddLine(shaftStart, shaftEnd, color, thickness);
 
                 // Arrowhead, built on the perpendicular at the end of the shaft.
-                const float halfWidth = headLength * 0.52f;
+                const float halfWidth = headLength * 0.46f;
                 draw_list->AddTriangleFilled(
                     end,
                     ImVec2(shaftEnd.x - dy * halfWidth, shaftEnd.y + dx * halfWidth),
@@ -269,85 +272,61 @@ void RenderFrame() {
             }
         }
 
-        // Large enough to read at a glance, small enough that a row of them fits
-        // across one square.
-        const float fontSize = std::clamp(cellHeight * 0.30f, 11.0f, 34.0f);
-        const float padX = std::max(3.0f, fontSize * 0.28f);
-        const float padY = std::max(1.0f, fontSize * 0.10f);
-        const float gap = std::max(2.0f, fontSize * 0.16f);
+        // Small discs rather than labels. A rank is one character, so a circle
+        // sized to that character is the least ink that can carry it, and it
+        // stays legible over a piece without covering one.
+        const float baseRadius = std::clamp((float)std::min(cellWidth, cellHeight) * 0.095f, 6.0f, 14.0f);
 
         for (const auto& entry : badgesBySquare) {
             const int row = entry.first / 8;
             const int col = entry.first % 8;
             const std::vector<Badge>& badges = entry.second;
+            const int count = (int)badges.size();
+            if (count == 0) continue;
 
-            // Measure, then shrink to fit if the row would run past the square.
-            // Several moves landing on one square is common, and the whole point
-            // of laying them side by side is defeated if the row spills onto the
-            // neighbours.
-            float scale = 1.0f;
-            std::vector<ImVec2> sizes;
-            float totalWidth = 0.0f;
-            float rowHeight = 0.0f;
+            // Shrink the row to fit rather than letting it spill onto the
+            // neighbouring squares. Several moves touching one square is common.
+            float radius = baseRadius;
+            float gap = radius * 0.35f;
+            float rowWidth = count * radius * 2.0f + (count - 1) * gap;
 
-            for (int attempt = 0; attempt < 2; ++attempt) {
-                sizes.clear();
-                sizes.reserve(badges.size());
-                totalWidth = 0.0f;
-                rowHeight = 0.0f;
-
-                for (const Badge& badge : badges) {
-                    const ImVec2 size = ImGui::GetFont()->CalcTextSizeA(
-                        fontSize * scale, FLT_MAX, 0.0f, badge.text.c_str());
-                    sizes.push_back(size);
-                    totalWidth += size.x + padX * scale * 2.0f;
-                    rowHeight = std::max(rowHeight, size.y + padY * scale * 2.0f);
-                }
-                totalWidth += gap * scale * (float)(badges.size() - 1);
-
-                const float available = (float)cellWidth * 0.94f;
-                if (attempt == 0 && totalWidth > available && totalWidth > 0.0f) {
-                    // One rescale is enough: the measurement is very close to
-                    // linear in the font size.
-                    scale = std::max(0.45f, available / totalWidth);
-                    continue;
-                }
-                break;
+            const float available = (float)cellWidth * 0.90f;
+            if (rowWidth > available) {
+                radius *= available / rowWidth;
+                gap = radius * 0.35f;
+                rowWidth = count * radius * 2.0f + (count - 1) * gap;
             }
 
-            const float badgePadX = padX * scale;
-            const float badgePadY = padY * scale;
-            const float badgeGap = gap * scale;
+            const float fontSize = radius * 1.30f;
 
             // Sat near the top of the square, which leaves the piece itself
             // visible underneath.
             const float squareLeft = (float)(g_boardRect.left + col * cellWidth);
             const float squareTop = (float)(g_boardRect.top + row * cellHeight);
-            float cursorX = squareLeft + ((float)cellWidth - totalWidth) * 0.5f;
-            const float badgeTop = squareTop + (float)cellHeight * 0.06f;
+            const float centerY = squareTop + (float)cellHeight * 0.12f + radius;
+            float centerX = squareLeft + ((float)cellWidth - rowWidth) * 0.5f + radius;
 
-            for (size_t i = 0; i < badges.size(); ++i) {
-                const Badge& badge = badges[i];
-                const float badgeWidth = sizes[i].x + badgePadX * 2.0f;
+            for (const Badge& badge : badges) {
+                const ImVec2 center(centerX, centerY);
 
-                const ImVec2 min(cursorX, badgeTop);
-                const ImVec2 max(cursorX + badgeWidth, badgeTop + rowHeight);
-
-                // A source square is outlined, a destination is filled, so the
-                // two ends of a move stay distinguishable at a glance.
+                // A destination is solid, a source is a ring, so the two ends of
+                // one move stay distinguishable without a second colour.
                 if (badge.destination) {
-                    draw_list->AddRectFilled(min, max, badge.fill, rowHeight * 0.25f);
+                    draw_list->AddCircleFilled(center, radius, badge.fill, 20);
                 }
                 else {
-                    draw_list->AddRectFilled(min, max, IM_COL32(20, 20, 20, 190), rowHeight * 0.25f);
-                    draw_list->AddRect(min, max, badge.fill, rowHeight * 0.25f, 0, 2.0f);
+                    draw_list->AddCircleFilled(center, radius, IM_COL32(18, 18, 20, 205), 20);
+                    draw_list->AddCircle(center, radius - 0.5f, badge.fill, 20,
+                                         std::max(1.2f, radius * 0.16f));
                 }
 
-                draw_list->AddText(ImGui::GetFont(), fontSize * scale,
-                    ImVec2(cursorX + badgePadX, badgeTop + badgePadY),
+                const ImVec2 textSize = ImGui::GetFont()->CalcTextSizeA(
+                    fontSize, FLT_MAX, 0.0f, badge.text.c_str());
+                draw_list->AddText(ImGui::GetFont(), fontSize,
+                    ImVec2(center.x - textSize.x * 0.5f, center.y - textSize.y * 0.5f),
                     IM_COL32(255, 255, 255, 255), badge.text.c_str());
 
-                cursorX += badgeWidth + badgeGap;
+                centerX += radius * 2.0f + gap;
             }
         }
     }
