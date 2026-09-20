@@ -1047,3 +1047,10 @@ dkms.conf
 OpenCV/
 x64/
 temp/*.mp4
+
+# Oracle: local runtime and debug artifacts
+Oracle/imgui.ini
+Oracle/temp/
+Oracle/screenshot.png
+Oracle/debug_screenshot*.png
+Oracle/debug_screenshot*.jpg
