@@ -3,7 +3,9 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <iostream>
+#include <map>
 #include <string>
+#include <vector>
 #include <WinBase.h>
 
 #include "Utils.h"
@@ -94,35 +96,141 @@ void RenderFrame() {
 
     if (!g_isRescanning && !bestMoves.empty() && !g_isConfiguringCropRegion && !g_isConfiguringSamplePoints &&
         (g_boardRect.right - g_boardRect.left) > 0 && (g_boardRect.bottom - g_boardRect.top) > 0) {
-        
-        const auto& bestMove = bestMoves.front();
-        if (bestMove.uci.length() >= 4) {
-            char srcFile = bestMove.uci[0];
-            char srcRank = bestMove.uci[1];
-            char dstFile = bestMove.uci[2];
-            char dstRank = bestMove.uci[3];
-            
-            auto DrawMoveDot = [&](char f, char r, ImU32 color) {
-                int col = f - 'a';
-                int row = '8' - r;
-                if (g_orientation == 1) { // Black at bottom
-                    col = 7 - col;
-                    row = 7 - row;
+
+        const int cellWidth = (g_boardRect.right - g_boardRect.left) / 8;
+        const int cellHeight = (g_boardRect.bottom - g_boardRect.top) / 8;
+
+        // Every suggestion is labelled with its rank, 1 being the engine's first
+        // choice, on both the square it leaves and the square it lands on, so a
+        // move can be read off the board without consulting the menu.
+        struct Badge {
+            std::string text;
+            ImU32 fill;
+            bool destination;
+        };
+
+        // Gathered per square before anything is drawn. Several moves commonly
+        // touch the same square, and stacking their labels would make all but
+        // the last unreadable, so each square lays its badges out in a row.
+        std::map<int, std::vector<Badge>> badgesBySquare;
+
+        auto squareIndex = [&](char fileChar, char rankChar) -> int {
+            int col = fileChar - 'a';
+            int row = '8' - rankChar;
+            if (col < 0 || col > 7 || row < 0 || row > 7) return -1;
+            if (g_orientation == 1) { // Black at the bottom.
+                col = 7 - col;
+                row = 7 - row;
+            }
+            return row * 8 + col;
+        };
+
+        // Colour carries the evaluation, the number carries the ranking. Scores
+        // arrive from the moving side's point of view, and moves are only
+        // requested on our own turn, so a positive score is good for us.
+        auto verdictColor = [](const StockfishMove& move) -> ImU32 {
+            if (move.mate) {
+                return move.mateIn > 0 ? IM_COL32(150, 90, 240, 235)   // Mate for us.
+                                       : IM_COL32(200, 40, 40, 235);   // Mate against us.
+            }
+            if (move.scoreCp > 50) return IM_COL32(40, 160, 70, 235);   // Winning.
+            if (move.scoreCp < -50) return IM_COL32(200, 60, 50, 235);  // Losing.
+            return IM_COL32(190, 150, 40, 235);                         // Level.
+        };
+
+        for (size_t i = 0; i < bestMoves.size(); ++i) {
+            const StockfishMove& move = bestMoves[i];
+            if (move.uci.length() < 4) continue;
+
+            const std::string label = std::to_string((int)i + 1);
+            const ImU32 color = verdictColor(move);
+
+            const int from = squareIndex(move.uci[0], move.uci[1]);
+            const int to = squareIndex(move.uci[2], move.uci[3]);
+            if (from >= 0) badgesBySquare[from].push_back({ label, color, false });
+            if (to >= 0) badgesBySquare[to].push_back({ label, color, true });
+        }
+
+        // Large enough to read at a glance, small enough that a row of them fits
+        // across one square.
+        const float fontSize = std::clamp(cellHeight * 0.30f, 11.0f, 34.0f);
+        const float padX = std::max(3.0f, fontSize * 0.28f);
+        const float padY = std::max(1.0f, fontSize * 0.10f);
+        const float gap = std::max(2.0f, fontSize * 0.16f);
+
+        for (const auto& entry : badgesBySquare) {
+            const int row = entry.first / 8;
+            const int col = entry.first % 8;
+            const std::vector<Badge>& badges = entry.second;
+
+            // Measure, then shrink to fit if the row would run past the square.
+            // Several moves landing on one square is common, and the whole point
+            // of laying them side by side is defeated if the row spills onto the
+            // neighbours.
+            float scale = 1.0f;
+            std::vector<ImVec2> sizes;
+            float totalWidth = 0.0f;
+            float rowHeight = 0.0f;
+
+            for (int attempt = 0; attempt < 2; ++attempt) {
+                sizes.clear();
+                sizes.reserve(badges.size());
+                totalWidth = 0.0f;
+                rowHeight = 0.0f;
+
+                for (const Badge& badge : badges) {
+                    const ImVec2 size = ImGui::GetFont()->CalcTextSizeA(
+                        fontSize * scale, FLT_MAX, 0.0f, badge.text.c_str());
+                    sizes.push_back(size);
+                    totalWidth += size.x + padX * scale * 2.0f;
+                    rowHeight = std::max(rowHeight, size.y + padY * scale * 2.0f);
                 }
-                
-                int cellWidth = (g_boardRect.right - g_boardRect.left) / 8;
-                int cellHeight = (g_boardRect.bottom - g_boardRect.top) / 8;
-                
-                float radius = std::min(cellWidth, cellHeight) / 20.0f;
-                int cx = g_boardRect.left + col * cellWidth + (int)(radius + 4.0f);
-                int cy = g_boardRect.top + row * cellHeight + (int)(radius + 4.0f);
-                
-                draw_list->AddCircleFilled(ImVec2((float)cx, (float)cy), radius, color);
-            };
-            
-            // Draw Orange dot for Source, Green dot for Destination
-            DrawMoveDot(srcFile, srcRank, IM_COL32(255, 165, 0, 200)); 
-            DrawMoveDot(dstFile, dstRank, IM_COL32(0, 255, 0, 200));   
+                totalWidth += gap * scale * (float)(badges.size() - 1);
+
+                const float available = (float)cellWidth * 0.94f;
+                if (attempt == 0 && totalWidth > available && totalWidth > 0.0f) {
+                    // One rescale is enough: the measurement is very close to
+                    // linear in the font size.
+                    scale = std::max(0.45f, available / totalWidth);
+                    continue;
+                }
+                break;
+            }
+
+            const float badgePadX = padX * scale;
+            const float badgePadY = padY * scale;
+            const float badgeGap = gap * scale;
+
+            // Sat near the top of the square, which leaves the piece itself
+            // visible underneath.
+            const float squareLeft = (float)(g_boardRect.left + col * cellWidth);
+            const float squareTop = (float)(g_boardRect.top + row * cellHeight);
+            float cursorX = squareLeft + ((float)cellWidth - totalWidth) * 0.5f;
+            const float badgeTop = squareTop + (float)cellHeight * 0.06f;
+
+            for (size_t i = 0; i < badges.size(); ++i) {
+                const Badge& badge = badges[i];
+                const float badgeWidth = sizes[i].x + badgePadX * 2.0f;
+
+                const ImVec2 min(cursorX, badgeTop);
+                const ImVec2 max(cursorX + badgeWidth, badgeTop + rowHeight);
+
+                // A source square is outlined, a destination is filled, so the
+                // two ends of a move stay distinguishable at a glance.
+                if (badge.destination) {
+                    draw_list->AddRectFilled(min, max, badge.fill, rowHeight * 0.25f);
+                }
+                else {
+                    draw_list->AddRectFilled(min, max, IM_COL32(20, 20, 20, 190), rowHeight * 0.25f);
+                    draw_list->AddRect(min, max, badge.fill, rowHeight * 0.25f, 0, 2.0f);
+                }
+
+                draw_list->AddText(ImGui::GetFont(), fontSize * scale,
+                    ImVec2(cursorX + badgePadX, badgeTop + badgePadY),
+                    IM_COL32(255, 255, 255, 255), badge.text.c_str());
+
+                cursorX += badgeWidth + badgeGap;
+            }
         }
     }
 
