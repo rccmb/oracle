@@ -280,36 +280,50 @@ void GenerateReferencePieceCrops(const cv::Mat& src, int cellWidth, int cellHeig
         return cv::Rect(x, y, g_cropPatchSize, g_cropPatchSize);
         };
 
-	// Depends on orientation.
-    std::vector<uchar> pieceNamesBlack;
-    std::vector<uchar> pieceNamesWhite;
-    if (g_orientation == 0) { // Black up.
-        pieceNamesBlack = { 'r', 'n', 'b', 'q', 'k', 'p' }; 
-        pieceNamesWhite = { 'R', 'N', 'B', 'Q', 'K', 'P' }; 
-    }
-	else { // White up.
-        pieceNamesBlack = { 'r', 'n', 'b', 'k', 'q', 'p' };
-        pieceNamesWhite = { 'R', 'N', 'B', 'K', 'Q', 'P' };
-    }
-    
+    // The starting position, in FEN reading order: rank 8 first, rank 1 last.
+    // Working from this rather than from screen rows removes the orientation
+    // branches that used to list the pieces twice, in a different order each way.
+    static const char* kStartRanks[8] = {
+        "rnbqkbnr",  // rank 8
+        "pppppppp",  // rank 7
+        "        ",
+        "        ",
+        "        ",
+        "        ",
+        "PPPPPPPP",  // rank 2
+        "RNBQKBNR",  // rank 1
+    };
 
-    for (int col = 0; col < 5; ++col) {
-        g_orientation == 0 
-            ? SaveReferencePiece(src, rectFor(0, col), std::string("black_") + (char)pieceNamesBlack[col] + ".png")
-            : SaveReferencePiece(src, rectFor(0, col), std::string("white_") + (char)pieceNamesWhite[col] + ".png");
+    // Every piece is captured on both shades of square rather than once on
+    // whichever it happened to start on. The same piece is drawn against two
+    // different backgrounds, and a template taken on one matches the other
+    // noticeably worse.
+    //
+    // Square colour is simply screen parity, in either orientation: turning a
+    // board around maps a8 onto h1, and both of those are light.
+    //
+    // A file is named so that its last character is still the piece letter, which
+    // is how the matcher reads it back.
+    for (int fenRank = 0; fenRank < 8; ++fenRank) {
+        for (int file = 0; file < 8; ++file) {
+            const char piece = kStartRanks[fenRank][file];
+            if (piece == ' ') continue;
+
+            const int row = (g_orientation == 0) ? fenRank : (7 - fenRank);
+            const int col = (g_orientation == 0) ? file : (7 - file);
+
+            const bool light = ((row + col) % 2 == 0);
+            const bool white = (piece >= 'A' && piece <= 'Z');
+
+            std::string name = white ? "white_" : "black_";
+            name += light ? 'L' : 'D';
+            name += '_';
+            name += piece;
+            name += ".png";
+
+            SaveReferencePiece(src, rectFor(row, col), name);
+        }
     }
-    g_orientation == 0
-        ? SaveReferencePiece(src, rectFor(1, 0), "black_p.png")
-        : SaveReferencePiece(src, rectFor(1, 0), "white_P.png");
-    
-    for (int col = 0; col < 5; ++col) {
-        g_orientation == 0
-            ? SaveReferencePiece(src, rectFor(7, col), std::string("white_") + (char)pieceNamesWhite[col] + ".png")
-            : SaveReferencePiece(src, rectFor(7, col), std::string("black_") + (char)pieceNamesBlack[col] + ".png");
-    }
-    g_orientation == 0
-        ? SaveReferencePiece(src, rectFor(6, 0), "white_P.png")
-        : SaveReferencePiece(src, rectFor(6, 0), "black_p.png");
 
 	// Give time for files to flush.
     Sleep(300);

@@ -178,8 +178,11 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
     // TEMPLATE MATCHING PREPROCESSING OF REFERENCES.
     struct RefTemplateData {
         std::string name;
-        bool isWhite;
-        cv::Mat tpl;
+        bool isWhite = false;
+        bool isLight = false;   // Shade of square the reference was captured on.
+        bool hasShade = false;  // False for references saved before shades existed.
+        cv::Mat base;           // As captured.
+        cv::Mat scaled;         // Resized to the board's current squares.
     };
 
     std::vector<RefTemplateData> refTemplates;
@@ -193,9 +196,22 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
         RefTemplateData data;
         data.name = name;
         data.isWhite = (name.rfind("white_", 0) == 0);
-        data.tpl = refImg;
+
+        // Named "<colour>_<L|D>_<piece>", so the shade sits right after the
+        // colour and the piece letter stays last.
+        if (name.size() > 6 && (name[6] == 'L' || name[6] == 'D')) {
+            data.hasShade = true;
+            data.isLight = (name[6] == 'L');
+        }
+
+        data.base = refImg;
+        data.scaled = refImg;
         refTemplates.push_back(std::move(data));
     }
+
+    // Size the references were last resized to, so the work happens on a change
+    // rather than every frame.
+    int templatesScaledFor = -1;
 
     std::fill(g_boardGridRows.begin(), g_boardGridRows.end(), std::string(8, ' '));
 
@@ -278,6 +294,25 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
             // Convert the frame to grayscale.
             cv::cvtColor(frameColor, frame, cv::COLOR_BGR2GRAY);
 
+            // References are captured at whatever the squares measured when the
+            // board was detected. Rescaling them to the squares as they are now
+            // means a browser zoom or a resized window keeps working instead of
+            // silently matching nothing until the board is detected again.
+            const int desiredCrop = std::max(8, (std::min(cellWidth, cellHeight) * 78) / 100);
+            if (desiredCrop != templatesScaledFor) {
+                for (RefTemplateData& reference : refTemplates) {
+                    if (reference.base.empty()) continue;
+                    if (reference.base.cols == desiredCrop) {
+                        reference.scaled = reference.base;
+                    }
+                    else {
+                        cv::resize(reference.base, reference.scaled,
+                                   cv::Size(desiredCrop, desiredCrop), 0, 0, cv::INTER_AREA);
+                    }
+                }
+                templatesScaledFor = desiredCrop;
+            }
+
             std::fill(g_detectedLetters.begin(), g_detectedLetters.end(), ' ');
 
             for (int row = 0; row < 8; row++) {
@@ -324,15 +359,18 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                     }
 
                     cv::Rect roi;
-                    if (g_cropRects.size() == 64) {
+                    if (g_cropRects.size() == 64 && g_cropRects[idx].width == desiredCrop) {
                         // Stored in screen coordinates for the overlay to draw,
                         // so shift them into the captured region.
                         const SAMPLE& s = g_cropRects[idx];
                         roi = cv::Rect(s.x - captureLeft, s.y - captureTop, s.width, s.height);
                     } else {
-                        int x = cx - (g_cropPatchSize / 2) + g_cropOffsetX;
-                        int y = cy - (g_cropPatchSize / 2) + g_cropOffsetY;
-                        roi = cv::Rect(x, y, g_cropPatchSize, g_cropPatchSize);
+                        // The board has changed size since those were built, so
+                        // derive the crop from the squares as they are now. Any
+                        // offsets the user set by hand still apply.
+                        const int x = cx - (desiredCrop / 2) + g_cropOffsetX;
+                        const int y = cy - (desiredCrop / 2) + g_cropOffsetY;
+                        roi = cv::Rect(x, y, desiredCrop, desiredCrop);
                     }
 
                     // Widen the crop so template matching can find a piece that
@@ -357,25 +395,45 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                     char bestLetter = looksBlack ? 'p' : 'P';
                     std::string bestName;
 
-                    for (const auto& rd : refTemplates) {
-                        if (rd.isWhite && looksBlack) continue;
-                        if (!rd.isWhite && looksWhite) continue;
+                    // Which shade this square is. Turning a board around maps a8
+                    // onto h1 and both are light, so screen parity gives the
+                    // answer whichever way the board is drawn.
+                    const bool squareIsLight = ((row + col) % 2 == 0);
 
-                        if (cellGray.cols < rd.tpl.cols || cellGray.rows < rd.tpl.rows) {
-                            // Failsafe in case the user shrinks the crop size in UI after saving templates, or screen bounds clip the ROI
-                            continue;
-                        }
+                    // Two passes: references captured on this shade of square
+                    // first, and only if none of them matched, the ones captured
+                    // on the other. The king and queen only ever stand on one
+                    // shade at the start, so for those the second pass is the
+                    // only pass there is.
+                    for (int pass = 0; pass < 2 && bestMatch < g_matchThreshold; ++pass) {
+                        for (const auto& rd : refTemplates) {
+                            if (rd.isWhite && looksBlack) continue;
+                            if (!rd.isWhite && looksWhite) continue;
 
-                        cv::Mat result;
-                        cv::matchTemplate(cellGray, rd.tpl, result, cv::TM_CCOEFF_NORMED);
-                        
-                        double minVal, maxVal;
-                        cv::minMaxLoc(result, &minVal, &maxVal);
+                            if (rd.hasShade) {
+                                const bool wanted = (pass == 0) ? squareIsLight : !squareIsLight;
+                                if (rd.isLight != wanted) continue;
+                            }
+                            else if (pass == 1) {
+                                continue; // Shadeless references are tried once.
+                            }
 
-                        if (maxVal > bestMatch) {
-                            bestMatch = maxVal;
-                            bestName = rd.name;
-                            bestLetter = bestName.back();
+                            if (cellGray.cols < rd.scaled.cols || cellGray.rows < rd.scaled.rows) {
+                                // Failsafe in case the screen bounds clip the ROI.
+                                continue;
+                            }
+
+                            cv::Mat result;
+                            cv::matchTemplate(cellGray, rd.scaled, result, cv::TM_CCOEFF_NORMED);
+
+                            double minVal, maxVal;
+                            cv::minMaxLoc(result, &minVal, &maxVal);
+
+                            if (maxVal > bestMatch) {
+                                bestMatch = maxVal;
+                                bestName = rd.name;
+                                bestLetter = bestName.back();
+                            }
                         }
                     }
 
