@@ -1,10 +1,15 @@
 #include "InitialConfiguration.h"
 
-void SetBoardClicks(HWND hwndDesktop) {
+void SetBoardClicks() {
     const cv::Mat& screenshot = g_userScreenshotGray;
 
     POINT p;
     GetCursorPos(&p);
+
+    // GetCursorPos reports screen coordinates, which on a multi-monitor desktop
+    // may be negative. Shift them into the captured image's coordinate space.
+    p.x -= g_virtualScreen.left;
+    p.y -= g_virtualScreen.top;
 
     if (g_clickStage == 0) {
         g_viewFirstClick.x = p.x;
@@ -215,10 +220,11 @@ int DetectBoardDimensions() {
 	if (g_userScreenshotReady && !g_userScreenshotGray.empty()) {
 		screenshot = g_userScreenshotGray;
 	} else {
-		screenshot = HWND2MAT(GetDesktopWindow());
+		cv::Mat color = CaptureVirtualScreen();
+        if (color.empty()) return 0;
         cv::Mat gray;
-        cv::cvtColor(screenshot, gray, cv::COLOR_BGRA2GRAY);
-        screenshot = gray.clone();
+        cv::cvtColor(color, gray, cv::COLOR_BGR2GRAY);
+        screenshot = gray;
 	}
 
     if (screenshot.empty()) return 0;

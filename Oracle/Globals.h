@@ -18,6 +18,12 @@
 
 extern RECT g_boardRect;
 
+// Bounding box of the whole virtual desktop in physical pixels, spanning every
+// monitor. The overlay window is placed here and every screen capture starts at
+// this origin, so capture-image coordinates and overlay client coordinates are
+// the same space. Screen coordinates from GetCursorPos are offset by .left/.top.
+extern RECT g_virtualScreen;
+
 extern std::vector<SAMPLE> g_debugSamples;
 extern std::vector<SAMPLE> g_cropRects;
 

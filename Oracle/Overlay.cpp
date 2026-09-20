@@ -29,7 +29,9 @@ HWND CreateOverlayWindow(HINSTANCE hInstance, const LPCWSTR className) {
         className,
         L"Oracle Overlay",
         WS_POPUP,
-        0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN),
+        g_virtualScreen.left, g_virtualScreen.top,
+        g_virtualScreen.right - g_virtualScreen.left,
+        g_virtualScreen.bottom - g_virtualScreen.top,
         NULL, NULL, hInstance, NULL
     );
 

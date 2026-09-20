@@ -24,7 +24,7 @@
  *
  * @param hwndDesktop Handle to the desktop window.
  */
-void SetBoardClicks(HWND hwndDesktop);
+void SetBoardClicks();
 
 /**
  * @brief Updates the debug sample regions for all 64 chessboard cells based on the current configuration.

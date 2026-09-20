@@ -18,10 +18,10 @@
 
 static bool IMGUI_MENU_VISIBLE = false;
 
-void CaptureBoardClicks(HWND hwndDesktop) {
+void CaptureBoardClicks() {
     ImGuiIO& io = ImGui::GetIO();
     if ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) && (GetAsyncKeyState(VK_CONTROL) & 0x8000) && !io.WantCaptureMouse) {
-        SetBoardClicks(hwndDesktop);
+        SetBoardClicks();
     }
 }
 
@@ -121,7 +121,7 @@ void RenderFrame() {
 
 	// Showing the ImGui menu.
     if (IMGUI_MENU_VISIBLE) {
-        ShowMenu(GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
+        ShowMenu(g_virtualScreen.right - g_virtualScreen.left, g_virtualScreen.bottom - g_virtualScreen.top);
     }
 
     ImGui::Render();
@@ -134,11 +134,15 @@ void RenderFrame() {
 }
 
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdshow) {
+    // Must precede every window and every capture: on a scaled display an
+    // unaware process is handed virtualised coordinates, so cursor positions and
+    // captured pixels disagree and calibration clicks land on the wrong square.
+    InitializeDisplayMetrics();
+
 	// Creating overlay.
     HINSTANCE hInstance = GetModuleHandle(NULL);
     const LPCWSTR className = L"Oracle Overlay";
     HWND hwndOverlay = CreateOverlayWindow(hInstance, className);
-    HWND hwndDesktop = GetDesktopWindow();
 
 	// Creating the Direct3D device.
     if (!CreateDeviceD3D(hwndOverlay)) {
@@ -169,7 +173,7 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
 
         // Capture board clicks using hotkey. ONLY USED IN CONFIGURATION.
         if (!g_boardClicksReady && IMGUI_MENU_VISIBLE && g_userScreenshotReady) {
-            CaptureBoardClicks(hwndDesktop);
+            CaptureBoardClicks();
         }
 
 		// Handle Windows messages.

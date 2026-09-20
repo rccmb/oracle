@@ -1,40 +1,80 @@
 #include "Utils.h"
 
-cv::Mat HWND2MAT(HWND hwnd) {
-    HDC hwindowDC = GetDC(hwnd);
-    HDC hwindowCompatibleDC = CreateCompatibleDC(hwindowDC);
+void InitializeDisplayMetrics() {
+    // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2. Resolved at runtime rather than
+    // compiled against, so the project still builds on a Windows SDK that predates
+    // the API. Falls back to the older system-wide call when it is unavailable.
+    using SetContextFn = BOOL(WINAPI*)(HANDLE);
+    if (HMODULE user32 = GetModuleHandleW(L"user32.dll")) {
+        auto setContext = (SetContextFn)GetProcAddress(user32, "SetProcessDpiAwarenessContext");
+        if (setContext && setContext((HANDLE)-4)) {
+            // Per-monitor awareness is active.
+        }
+        else {
+            SetProcessDPIAware();
+        }
+    }
 
-    RECT windowsize;
-    GetClientRect(hwnd, &windowsize);
-    int width = windowsize.right;
-    int height = windowsize.bottom;
+    // Recorded after the awareness call: these metrics are reported in virtualised
+    // units until the process opts in.
+    g_virtualScreen.left = GetSystemMetrics(SM_XVIRTUALSCREEN);
+    g_virtualScreen.top = GetSystemMetrics(SM_YVIRTUALSCREEN);
+    g_virtualScreen.right = g_virtualScreen.left + GetSystemMetrics(SM_CXVIRTUALSCREEN);
+    g_virtualScreen.bottom = g_virtualScreen.top + GetSystemMetrics(SM_CYVIRTUALSCREEN);
+}
+
+cv::Mat CaptureScreenRegion(int x, int y, int width, int height) {
+    if (width <= 0 || height <= 0) return {};
+
+    HDC screenDC = GetDC(nullptr);
+    if (!screenDC) return {};
+
+    HDC memoryDC = CreateCompatibleDC(screenDC);
+    if (!memoryDC) {
+        ReleaseDC(nullptr, screenDC);
+        return {};
+    }
 
     BITMAPINFO bi;
     ZeroMemory(&bi, sizeof(BITMAPINFO));
     bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     bi.bmiHeader.biWidth = width;
-    bi.bmiHeader.biHeight = -height;  
+    bi.bmiHeader.biHeight = -height; // Top-down, so row 0 is the top of the region.
     bi.bmiHeader.biPlanes = 1;
-    bi.bmiHeader.biBitCount = 32;    
+    bi.bmiHeader.biBitCount = 32;
     bi.bmiHeader.biCompression = BI_RGB;
 
-    void* pBits = nullptr;
-    HBITMAP hbwindow = CreateDIBSection(hwindowCompatibleDC, &bi, DIB_RGB_COLORS, &pBits, NULL, 0);
-    SelectObject(hwindowCompatibleDC, hbwindow);
+    void* bits = nullptr;
+    HBITMAP bitmap = CreateDIBSection(memoryDC, &bi, DIB_RGB_COLORS, &bits, NULL, 0);
+    if (!bitmap) {
+        DeleteDC(memoryDC);
+        ReleaseDC(nullptr, screenDC);
+        return {};
+    }
 
-    BitBlt(hwindowCompatibleDC, 0, 0, width, height, hwindowDC, 0, 0, SRCCOPY);
+    HGDIOBJ previous = SelectObject(memoryDC, bitmap);
+    BitBlt(memoryDC, 0, 0, width, height, screenDC, x, y, SRCCOPY);
 
-    cv::Mat src(height, width, CV_8UC4, pBits);
-
+    // cvtColor allocates its own destination, so the result stays valid once the
+    // DIB section is released. No extra clone is needed.
+    cv::Mat bgra(height, width, CV_8UC4, bits);
     cv::Mat bgr;
-    cv::cvtColor(src, bgr, cv::COLOR_BGRA2BGR);
-    cv::Mat result = bgr.clone();
+    cv::cvtColor(bgra, bgr, cv::COLOR_BGRA2BGR);
 
-    DeleteObject(hbwindow);
-    DeleteDC(hwindowCompatibleDC);
-    ReleaseDC(hwnd, hwindowDC);
+    SelectObject(memoryDC, previous);
+    DeleteObject(bitmap);
+    DeleteDC(memoryDC);
+    ReleaseDC(nullptr, screenDC);
 
-    return result;
+    return bgr;
+}
+
+cv::Mat CaptureVirtualScreen() {
+    return CaptureScreenRegion(
+        g_virtualScreen.left,
+        g_virtualScreen.top,
+        g_virtualScreen.right - g_virtualScreen.left,
+        g_virtualScreen.bottom - g_virtualScreen.top);
 }
 
 std::string PieceToUnicode(char piece) {

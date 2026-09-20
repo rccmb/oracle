@@ -11,13 +11,35 @@
 #include "Structs.h"
 
 /**
- * @brief Captures the client area of a window and converts it to an OpenCV Mat image. COLOR.
+ * @brief Makes the process per-monitor DPI aware and records the virtual screen bounds.
  *
- * @param hwnd Handle to the window whose client area is to be captured.
- * 
- * @return cv::Mat An OpenCV matrix containing the window's client area pixel data in grayscale.
+ * Must run before any window is created. Without this the process is virtualised
+ * on scaled displays: GetCursorPos and BitBlt report different pixel spaces, so
+ * calibration clicks land on the wrong part of the captured image.
  */
-cv::Mat HWND2MAT(HWND hwnd);
+void InitializeDisplayMetrics();
+
+/**
+ * @brief Captures a rectangle of the desktop in physical pixels.
+ *
+ * @param x,y     Top-left corner in screen coordinates. May be negative on a
+ *                multi-monitor desktop whose secondary display sits left of or
+ *                above the primary one.
+ * @param width,height Size of the region to capture.
+ *
+ * @return cv::Mat BGR image of the region, or an empty Mat if capture failed.
+ */
+cv::Mat CaptureScreenRegion(int x, int y, int width, int height);
+
+/**
+ * @brief Captures the entire virtual desktop, across every monitor.
+ *
+ * The returned image's origin corresponds to g_virtualScreen's top-left, which
+ * is the coordinate space every stored rectangle in Oracle uses.
+ *
+ * @return cv::Mat BGR image of the whole desktop.
+ */
+cv::Mat CaptureVirtualScreen();
 
 // TODO: Documentation.
 std::string PieceToUnicode(char piece);

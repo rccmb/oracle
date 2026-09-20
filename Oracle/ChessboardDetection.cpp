@@ -81,7 +81,6 @@ std::string BoardToFEN() {
 
 DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
     HWND hwndOverlay = (HWND)param;
-    HWND hwndDesktop = GetDesktopWindow();
     
     // Board dimensions.
     int cellWidth = (g_boardRect.right - g_boardRect.left) / 8;
@@ -117,7 +116,7 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
     while(true) {
         while (g_hasAnalysisStarted) {
             // Capture color for palette masking first, then grayscale.
-            cv::Mat frameColor = HWND2MAT(hwndDesktop);
+            cv::Mat frameColor = CaptureVirtualScreen();
             cv::Mat frame;
 
             // Convert the frame to grayscale.

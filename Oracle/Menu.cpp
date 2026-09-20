@@ -24,7 +24,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
     if (!g_userScreenshotReady) {
         ImGui::TextColored(ImVec4(1, 0.5f, 0, 1), "You must take a screenshot before setting clicks.");
         if (ImGui::Button("Take Screenshot")) {
-            g_userScreenshotColor = HWND2MAT(GetDesktopWindow());
+            g_userScreenshotColor = CaptureVirtualScreen();
             if (!g_userScreenshotColor.empty()) {
                 cv::cvtColor(g_userScreenshotColor, g_userScreenshotGray, cv::COLOR_BGR2GRAY);
                 g_userScreenshotReady = true;
@@ -211,7 +211,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
         g_isConfiguringCropRegion = false;
         int cellW = (g_boardRect.right - g_boardRect.left) / 8;
         int cellH = (g_boardRect.bottom - g_boardRect.top) / 8;
-        cv::Mat srcColor = g_userScreenshotReady && !g_userScreenshotColor.empty() ? g_userScreenshotColor : HWND2MAT(GetDesktopWindow());
+        cv::Mat srcColor = g_userScreenshotReady && !g_userScreenshotColor.empty() ? g_userScreenshotColor : CaptureVirtualScreen();
         GenerateReferencePieceCrops(srcColor, cellW, cellH);
         g_hasAnalysisStarted = true;
     }
