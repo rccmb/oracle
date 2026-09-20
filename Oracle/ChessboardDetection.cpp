@@ -1,5 +1,7 @@
 #include "ChessboardDetection.h"
 
+#include <cstring>
+
 double SampleCellCenter(const cv::Mat& gray, int x, int y, int offsetX, int offsetY) {
     int patch = g_debugPatchSize;
 
@@ -84,10 +86,6 @@ std::string BoardToFEN() {
 
 DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
     HWND hwndOverlay = (HWND)param;
-    
-    // Board dimensions.
-    int cellWidth = (g_boardRect.right - g_boardRect.left) / 8;
-    int cellHeight = (g_boardRect.bottom - g_boardRect.top) / 8;
 
     std::map<std::string, cv::Mat> refs = LoadReferencePieces(g_tempDir);
 
@@ -115,23 +113,65 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
 
     std::fill(g_boardGridRows.begin(), g_boardGridRows.end(), std::string(8, ' '));
 
+    // Room around the board so a crop widened by searchPadding still falls
+    // inside the captured region rather than being clipped at its edge.
+    const int searchPadding = 5;
+
+    cv::Mat previousFrameColor;
+
     // Continuous analysis loop.
     while(true) {
         while (g_hasAnalysisStarted) {
-            // Capture color for palette masking first, then grayscale.
-            cv::Mat frameColor = CaptureVirtualScreen();
+            // Re-read the board every pass. These used to be computed once when
+            // the thread started, so re-detecting a board of a different size, or
+            // at a different place, had no effect until Oracle was restarted.
+            const int cellWidth = (g_boardRect.right - g_boardRect.left) / 8;
+            const int cellHeight = (g_boardRect.bottom - g_boardRect.top) / 8;
+            if (cellWidth <= 0 || cellHeight <= 0) {
+                Sleep(50);
+                continue;
+            }
+
+            // Only the board is captured, not the whole desktop. The old full
+            // screen grab copied tens of megabytes per pass on a large display,
+            // in a loop that had no sleep in it, to read sixty-four squares.
+            const int captureLeft = g_boardRect.left - searchPadding;
+            const int captureTop = g_boardRect.top - searchPadding;
+            const int captureWidth = (g_boardRect.right - g_boardRect.left) + 2 * searchPadding;
+            const int captureHeight = (g_boardRect.bottom - g_boardRect.top) + 2 * searchPadding;
+
+            cv::Mat frameColor = CaptureScreenRegion(captureLeft, captureTop, captureWidth, captureHeight);
+            if (frameColor.empty()) {
+                Sleep(50);
+                continue;
+            }
+
+            // Nothing on the board changed, so neither would the result. Pieces
+            // only move when pixels do, and between moves that is every frame.
+            if (!previousFrameColor.empty() &&
+                previousFrameColor.size() == frameColor.size() &&
+                previousFrameColor.type() == frameColor.type() &&
+                previousFrameColor.isContinuous() && frameColor.isContinuous() &&
+                std::memcmp(previousFrameColor.data, frameColor.data, frameColor.total() * frameColor.elemSize()) == 0) {
+                Sleep(10);
+                continue;
+            }
+            previousFrameColor = frameColor.clone();
+
             cv::Mat frame;
 
             // Convert the frame to grayscale.
             cv::cvtColor(frameColor, frame, cv::COLOR_BGR2GRAY);
-            
+
             std::fill(g_detectedLetters.begin(), g_detectedLetters.end(), ' ');
 
             for (int row = 0; row < 8; row++) {
                 for (int col = 0; col < 8; col++) {
                     int idx = row * 8 + col;
-                    int cx = g_boardRect.left + (col * cellWidth) + (cellWidth / 2);
-                    int cy = g_boardRect.top + (row * cellHeight) + (cellHeight / 2);
+
+                    // Cell centres in the captured region's own coordinates.
+                    int cx = (g_boardRect.left - captureLeft) + (col * cellWidth) + (cellWidth / 2);
+                    int cy = (g_boardRect.top - captureTop) + (row * cellHeight) + (cellHeight / 2);
 
                     // Determine occupancy by brightness proximity.
                     int offsetsX[3] = { g_debugOffsetX, g_debugOffsetX2, g_debugOffsetX3 };
@@ -170,16 +210,18 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
 
                     cv::Rect roi;
                     if (g_cropRects.size() == 64) {
+                        // Stored in screen coordinates for the overlay to draw,
+                        // so shift them into the captured region.
                         const SAMPLE& s = g_cropRects[idx];
-                        roi = cv::Rect(s.x, s.y, s.width, s.height);
+                        roi = cv::Rect(s.x - captureLeft, s.y - captureTop, s.width, s.height);
                     } else {
                         int x = cx - (g_cropPatchSize / 2) + g_cropOffsetX;
                         int y = cy - (g_cropPatchSize / 2) + g_cropOffsetY;
                         roi = cv::Rect(x, y, g_cropPatchSize, g_cropPatchSize);
                     }
 
-                    // Expand ROI to allow for template matching to search for shifted pieces, anti-bot jiggling.
-                    const int searchPadding = 5;
+                    // Widen the crop so template matching can find a piece that
+                    // sits a little off centre in its square.
                     roi.x -= searchPadding;
                     roi.y -= searchPadding;
                     roi.width += 2 * searchPadding;
