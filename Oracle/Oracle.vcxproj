@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -69,9 +69,21 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
-  <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\Users\rodri\Desktop\Projetos\oracle\OpenCV\opencv\build\include;$(IncludePath)</IncludePath>
+  <PropertyGroup Label="UserMacros">
+    <!-- OpenCV build root: the directory containing include\ and x64\vc16\.
+         Defaults to the in-repo location described in the README. Override via
+         the ORACLE_OPENCV_ROOT environment variable or -p:OracleOpenCVRoot=...
+         Deliberately not derived from OPENCV_DIR: by convention that variable
+         points at build\x64\vc16 rather than the build root, so a machine-wide
+         value would silently pull in an unrelated OpenCV installation. -->
+    <OracleOpenCVRoot Condition="'$(ORACLE_OPENCV_ROOT)' != ''">$(ORACLE_OPENCV_ROOT)</OracleOpenCVRoot>
+    <OracleOpenCVRoot Condition="'$(OracleOpenCVRoot)' == ''">$(SolutionDir)..\OpenCV\opencv\build</OracleOpenCVRoot>
+    <OracleOpenCVLib Condition="'$(Configuration)' == 'Debug'">opencv_world4120d</OracleOpenCVLib>
+    <OracleOpenCVLib Condition="'$(OracleOpenCVLib)' == ''">opencv_world4120</OracleOpenCVLib>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Platform)'=='x64'">
+    <IncludePath>$(OracleOpenCVRoot)\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(OracleOpenCVRoot)\x64\vc16\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -111,8 +123,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\Users\rodri\Desktop\Projetos\oracle\OpenCV\opencv\build\x64\vc16\lib</AdditionalLibraryDirectories>
-      <AdditionalDependencies>C:\Users\rodri\Desktop\Projetos\oracle\OpenCV\opencv\build\x64\vc16\lib\opencv_world4120.lib;C:\Users\rodri\Desktop\Projetos\oracle\OpenCV\opencv\build\x64\vc16\lib\opencv_world4120d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(OracleOpenCVLib).lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -121,12 +132,15 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>ImGui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>$(OracleOpenCVLib).lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -169,6 +183,9 @@
     <ClInclude Include="ChessboardDetection.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Target Name="CopyOpenCVRuntime" AfterTargets="Build" Condition="'$(Platform)'=='x64'">
+    <Copy SourceFiles="$(OracleOpenCVRoot)\x64\vc16\bin\$(OracleOpenCVLib).dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="Exists('$(OracleOpenCVRoot)\x64\vc16\bin\$(OracleOpenCVLib).dll')" />
+  </Target>
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
