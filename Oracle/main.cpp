@@ -3,6 +3,7 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <iostream>
+#include <cmath>
 #include <map>
 #include <string>
 #include <vector>
@@ -151,6 +152,71 @@ void RenderFrame() {
             const int to = squareIndex(move.uci[2], move.uci[3]);
             if (from >= 0) badgesBySquare[from].push_back({ label, color, false });
             if (to >= 0) badgesBySquare[to].push_back({ label, color, true });
+        }
+
+        /* ARROWS. */
+        if (g_showMoveArrows) {
+            const float cellSide = (float)std::min(cellWidth, cellHeight);
+
+            auto squareCenter = [&](int index) {
+                const int row = index / 8;
+                const int col = index % 8;
+                return ImVec2(
+                    (float)(g_boardRect.left + col * cellWidth) + cellWidth * 0.5f,
+                    (float)(g_boardRect.top + row * cellHeight) + cellHeight * 0.5f);
+            };
+
+            auto withAlpha = [](ImU32 color, int alpha) {
+                return (color & ~IM_COL32_A_MASK) |
+                       ((ImU32)(alpha & 0xFF) << IM_COL32_A_SHIFT);
+            };
+
+            // Drawn weakest first so the engine's first choice ends up on top of
+            // the ones it likes less.
+            for (int i = (int)bestMoves.size() - 1; i >= 0; --i) {
+                const StockfishMove& move = bestMoves[i];
+                if (move.uci.length() < 4) continue;
+
+                const int from = squareIndex(move.uci[0], move.uci[1]);
+                const int to = squareIndex(move.uci[2], move.uci[3]);
+                if (from < 0 || to < 0) continue;
+
+                // Rank shows in weight and in opacity, so the best move reads as
+                // the best move without having to find its number first.
+                const float thickness = std::max(2.0f, cellSide * (0.10f - 0.018f * i));
+                const int alpha = std::max(70, 210 - 45 * i);
+                const ImU32 color = withAlpha(verdictColor(move), alpha);
+
+                const ImVec2 start = squareCenter(from);
+                const ImVec2 end = squareCenter(to);
+
+                float dx = end.x - start.x;
+                float dy = end.y - start.y;
+                const float length = std::sqrt(dx * dx + dy * dy);
+                if (length < 1.0f) continue;
+                dx /= length;
+                dy /= length;
+
+                // Both ends are pulled in: away from the piece being moved so it
+                // stays visible, and short of the centre of the target so the
+                // head does not bury whatever is standing there.
+                const float tailInset = cellSide * 0.26f;
+                const float headLength = cellSide * 0.34f;
+                if (length <= tailInset + headLength) continue;
+
+                const ImVec2 shaftStart(start.x + dx * tailInset, start.y + dy * tailInset);
+                const ImVec2 shaftEnd(end.x - dx * headLength, end.y - dy * headLength);
+
+                draw_list->AddLine(shaftStart, shaftEnd, color, thickness);
+
+                // Arrowhead, built on the perpendicular at the end of the shaft.
+                const float halfWidth = headLength * 0.52f;
+                draw_list->AddTriangleFilled(
+                    end,
+                    ImVec2(shaftEnd.x - dy * halfWidth, shaftEnd.y + dx * halfWidth),
+                    ImVec2(shaftEnd.x + dy * halfWidth, shaftEnd.y - dx * halfWidth),
+                    color);
+            }
         }
 
         // Large enough to read at a glance, small enough that a row of them fits

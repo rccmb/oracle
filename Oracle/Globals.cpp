@@ -78,3 +78,4 @@ int g_trackerPly = 0;
 bool g_trackerInSync = true;
 bool g_sfMovesAreOurs = true;
 bool g_trackerResetRequested = false;
+bool g_showMoveArrows = true;

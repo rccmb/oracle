@@ -110,3 +110,6 @@ extern bool g_sfMovesAreOurs;      // Whether the suggestions belong to the side
 // Set by the interface when the board is detected again, so the thread starts a
 // fresh game rather than trying to reconcile the new board against the old one.
 extern bool g_trackerResetRequested;
+
+// Whether the overlay draws an arrow for each suggestion beneath its number.
+extern bool g_showMoveArrows;
