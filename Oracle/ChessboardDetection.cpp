@@ -29,6 +29,63 @@ static int ComparableScore(bool isMate, int mateInWhite, int cpWhite) {
                              : (-100000 - mateInWhite * 100);
 }
 
+// Learns the colour a site paints over the squares of the move just played.
+//
+// No picker and no configuration: once a move has been accepted, the square it
+// came from is known to be empty, so whatever flat colour is sitting there is
+// this board's highlight by definition. Highlights differ per shade of square,
+// so the list fills out over the first few moves of a game.
+static void LearnHighlightColor(const cv::Mat& frameColor, int fenSquare,
+                                int captureLeft, int captureTop,
+                                int cellWidth, int cellHeight) {
+    if (frameColor.empty() || fenSquare < 0 || fenSquare >= 64) return;
+
+    const int fenRank = fenSquare / 8;
+    const int file = fenSquare % 8;
+    const int row = (g_orientation == 0) ? fenRank : (7 - fenRank);
+    const int col = (g_orientation == 0) ? file : (7 - file);
+
+    const int centerX = (g_boardRect.left - captureLeft) + col * cellWidth + cellWidth / 2;
+    const int centerY = (g_boardRect.top - captureTop) + row * cellHeight + cellHeight / 2;
+
+    const int half = std::max(2, std::min(cellWidth, cellHeight) / 6);
+    cv::Rect patch(centerX - half, centerY - half, half * 2, half * 2);
+    patch &= cv::Rect(0, 0, frameColor.cols, frameColor.rows);
+    if (patch.width <= 0 || patch.height <= 0) return;
+
+    cv::Scalar mean, stddev;
+    cv::meanStdDev(frameColor(patch), mean, stddev);
+
+    // The square should be empty and flat. Anything textured means the frame was
+    // caught mid-animation, or the square is not the one being thought of.
+    if (std::max({ stddev[0], stddev[1], stddev[2] }) > 8.0) return;
+
+    const cv::Vec3b color(
+        (uchar)std::clamp((int)std::lround(mean[0]), 0, 255),
+        (uchar)std::clamp((int)std::lround(mean[1]), 0, 255),
+        (uchar)std::clamp((int)std::lround(mean[2]), 0, 255));
+
+    auto distance = [](const cv::Vec3b& a, const cv::Vec3b& b) {
+        return std::abs(a[0] - b[0]) + std::abs(a[1] - b[1]) + std::abs(a[2] - b[2]);
+    };
+
+    // Nothing to learn when the square is simply its own colour, which is what
+    // an unhighlighted board looks like.
+    const int ordinary = std::max(30, g_analysisTolerance * 3);
+    if (distance(color, g_refBoardColor1Color) <= ordinary) return;
+    if (distance(color, g_refBoardColor2Color) <= ordinary) return;
+
+    std::lock_guard<std::mutex> lock(g_highlightMutex);
+    for (const cv::Vec3b& known : g_highlightColors) {
+        if (distance(color, known) <= 30) return;
+    }
+
+    // Two shades of square, times last move, check and hover, is comfortably
+    // under this. A list that keeps growing means something else is wrong.
+    if (g_highlightColors.size() >= 8) return;
+    g_highlightColors.push_back(color);
+}
+
 // The side to move named by a FEN.
 static bool ScoreSideToMoveIsWhite(const std::string& fen) {
     const size_t space = fen.find(' ');
@@ -244,6 +301,11 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                 g_liveEvalValid.store(false);
                 previousEvaluatedPly = -1;
                 previousVerdictPly = -1;
+                templatesScaledFor = -1;
+                {
+                    std::lock_guard<std::mutex> lock(g_highlightMutex);
+                    g_highlightColors.clear();
+                }
 
                 std::lock_guard<std::mutex> publish(g_analysisStateMutex);
                 g_trackedFen = tracker.Position().ToFen();
@@ -478,6 +540,15 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                 if (tracker.UnreadableStreak() > 30) g_trackerInSync = false;
             }
             else {
+                // A move was just accepted, so the square it left is empty and,
+                // on most sites, tinted. That makes it a free sample of this
+                // board's highlight colour.
+                if (outcome == TrackerOutcome::Advanced && tracker.LastAppliedCount() == 1 &&
+                    !tracker.History().empty()) {
+                    LearnHighlightColor(frameColor, tracker.History().back().move.from,
+                                        captureLeft, captureTop, cellWidth, cellHeight);
+                }
+
                 // Once the tracker agrees, the preview shows the tracked
                 // position rather than the raw read, so a square misread for a
                 // single frame does not flicker in it.

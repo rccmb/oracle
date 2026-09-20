@@ -73,6 +73,15 @@ extern cv::Vec3b g_refBoardColor1Color;
 extern cv::Vec3b g_refBoardColor2Color;
 
 extern int g_analysisTolerance;
+
+// Colours a site paints over the squares of the last move, of a check, or of a
+// hover. Learned rather than configured: after a move is accepted the tracker
+// knows exactly which square was vacated, so whatever flat colour is sitting
+// there is by definition this board's highlight.
+//
+// Read from both the detection thread and the interface, hence the lock.
+extern std::vector<cv::Vec3b> g_highlightColors;
+extern std::mutex g_highlightMutex;
 extern std::vector<char> g_detectedLetters;
 extern std::vector<std::string> g_boardGridRows;
 

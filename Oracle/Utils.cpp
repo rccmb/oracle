@@ -115,6 +115,14 @@ cv::Mat ApplyPaletteMasking(cv::Mat bgr) {
     addBoardColorRange(g_refBoardColor1Color);
     addBoardColorRange(g_refBoardColor2Color);
 
+    // A highlighted square is still an empty square. Without this the tint a
+    // site paints over the last move survives the mask, and the piece standing
+    // on it is matched against a background the references never saw.
+    {
+        std::lock_guard<std::mutex> lock(g_highlightMutex);
+        for (const cv::Vec3b& highlight : g_highlightColors) addBoardColorRange(highlight);
+    }
+
     // Replace the board background with a perfectly uniform color.
     // This leaves the pieces completely untouched, preserving all their gradients and texture.
     cv::Mat filtered = bgr.clone();

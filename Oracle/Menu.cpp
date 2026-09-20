@@ -464,6 +464,13 @@ void ShowMenu(int imageWidth, int imageHeight) {
             ImGui::SliderFloat("Match Threshold", &g_matchThreshold, 0.10f, 1.0f, "%.2f");
             ImGui::Checkbox("Draw move arrows", &g_showMoveArrows);
 
+            {
+                std::lock_guard<std::mutex> lock(g_highlightMutex);
+                ImGui::Text("Highlight colours learned: %d", (int)g_highlightColors.size());
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Forget")) g_highlightColors.clear();
+            }
+
             ImGui::Text("Play As:");
 
             if (ImGui::RadioButton("Playing as White", g_sfPlayWhite == 1)) {

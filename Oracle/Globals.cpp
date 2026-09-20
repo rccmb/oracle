@@ -53,6 +53,8 @@ cv::Vec3b g_refBoardColor1Color = {0,0,0};
 cv::Vec3b g_refBoardColor2Color = {0,0,0};
 
 int g_analysisTolerance = 5;
+std::vector<cv::Vec3b> g_highlightColors;
+std::mutex g_highlightMutex;
 std::vector<char> g_detectedLetters(64, ' ');
 std::vector<std::string> g_boardGridRows(8, std::string(8, ' '));
 std::filesystem::path g_tempDir = std::filesystem::path("temp");
