@@ -1,5 +1,7 @@
 #include "engine/StockfishHandler.h"
 
+#include "platform/Utils.h"
+
 #include <map>
 
 HANDLE g_sfInput = nullptr;
@@ -23,8 +25,37 @@ static PROCESS_INFORMATION g_sfProcInfo = { 0 };
 static HANDLE g_sfThread = nullptr;
 static bool g_sfStopThread = false;
 
-// Where the engine was launched from, so it can be started again if it dies.
-static std::string g_sfPath = "stockfish/stockfish.exe";
+std::string g_sfEngineRequested;
+std::string g_sfEngineResolved;
+std::string g_sfEngineName;
+std::string g_sfEngineError;
+
+// Used when nothing else was asked for.
+static const char* kBundledEngine = "third_party/stockfish/stockfish.exe";
+
+// Reads whatever the engine has already written, without waiting for it.
+//
+// ReadFile on one of these pipes blocks until something arrives, which makes
+// every "wait up to N milliseconds" loop in this file a lie: if the engine says
+// nothing, the loop never gets to check the clock. That was survivable while the
+// only engine was a known good Stockfish. Now that the engine is whatever the
+// user points at, a binary that is not a UCI engine is an ordinary mistake, and
+// it must not hang Oracle.
+static bool ReadAvailable(std::string& into) {
+    if (!g_sfOutput) return false;
+
+    DWORD available = 0;
+    if (!PeekNamedPipe(g_sfOutput, nullptr, 0, nullptr, &available, nullptr)) return false;
+    if (available == 0) return false;
+
+    char buffer[1024];
+    const DWORD wanted = std::min<DWORD>(available, (DWORD)sizeof(buffer));
+    DWORD read = 0;
+    if (!ReadFile(g_sfOutput, buffer, wanted, &read, nullptr) || read == 0) return false;
+
+    into.append(buffer, read);
+    return true;
+}
 
 // How long a liveness answer stays good for before the engine is probed again.
 static constexpr DWORD kLivenessProbeIntervalMs = 2000;
@@ -94,43 +125,79 @@ static int ParseDepth(const std::string& line) {
 
 // Finds the engine relative to Oracle rather than to the working directory.
 //
-// A bare "stockfish/stockfish.exe" is resolved against whatever directory the
-// process happens to have been started in, which is why the README had to warn
-// about it. Searching outward from the executable instead means the engine is
-// found when Oracle is launched from a debugger, from a shortcut, from a shell
-// in another directory, or unpacked beside its own binary.
-static std::string ResolveEnginePath(const std::string& requested) {
+// A relative path is otherwise resolved against whatever directory the process
+// happened to be started in, which is why the README used to warn about it.
+// Searching outward from the executable means an engine is found whether Oracle
+// was launched from a debugger, a shortcut, a shell somewhere else, or unpacked
+// beside its own binary.
+static std::filesystem::path ResolveEnginePath(const std::string& requested) {
     namespace fs = std::filesystem;
     std::error_code ec;
 
-    const fs::path asked(requested);
-    if (asked.is_absolute()) return requested;
-    if (fs::exists(asked, ec)) return requested;
+    // u8path rather than the narrow constructor: this arrives from a command
+    // line or an ImGui text box, both UTF-8, and an engine can perfectly well
+    // live under a path with an accent in it.
+    const fs::path asked = requested.empty() ? fs::path() : fs::u8path(requested);
 
-    wchar_t moduleName[MAX_PATH] = {};
-    if (!GetModuleFileNameW(nullptr, moduleName, MAX_PATH)) return requested;
+    if (!asked.empty()) {
+        if (asked.is_absolute()) return asked;
+        if (fs::exists(asked, ec)) return fs::absolute(asked, ec);
+    }
 
-    // Walk up from the executable. Five levels covers a build sitting in
-    // x64\<config>\ as well as the engine unpacked next to a released binary.
-    fs::path directory = fs::path(moduleName).parent_path();
-    for (int level = 0; level < 5; ++level) {
-        const fs::path candidates[] = {
-            directory / "stockfish" / "stockfish.exe",
-            directory / "third_party" / "stockfish" / "stockfish.exe",
-        };
+    // Five levels up covers a build sitting in x64\<config>\ as well as an
+    // engine unpacked beside a released binary.
+    fs::path directory = ExecutableDirectory();
+    for (int level = 0; level < 5 && !directory.empty(); ++level) {
+        std::vector<fs::path> candidates;
+        if (!asked.empty()) {
+            candidates.push_back(directory / asked);            // as given, from here
+            candidates.push_back(directory / asked.filename()); // or just dropped alongside
+        }
+        else {
+            candidates.push_back(directory / fs::u8path(kBundledEngine));
+            candidates.push_back(directory / "stockfish" / "stockfish.exe");
+        }
 
         for (const fs::path& candidate : candidates) {
-            if (fs::exists(candidate, ec)) {
-                const fs::path resolved = fs::weakly_canonical(candidate, ec);
-                return ec ? candidate.string() : resolved.string();
-            }
+            if (!fs::exists(candidate, ec)) continue;
+            const fs::path resolved = fs::weakly_canonical(candidate, ec);
+            return ec ? candidate : resolved;
         }
 
         if (!directory.has_parent_path() || directory.parent_path() == directory) break;
         directory = directory.parent_path();
     }
 
-    return requested;
+    return asked;
+}
+
+// Completes the UCI handshake and records what the engine calls itself.
+//
+// Worth doing rather than firing "uci" and moving on: it is the only moment that
+// separates an engine that started from a binary that merely launched, and the
+// name it reports is the one piece of evidence a user has that the engine they
+// chose is the one actually running.
+static bool CompleteHandshake() {
+    SendCommand("uci\n");
+
+    std::string response;
+    const DWORD started = GetTickCount();
+
+    while (GetTickCount() - started < 5000) {
+        if (!ReadAvailable(response)) { Sleep(10); continue; }
+        if (response.find("uciok") == std::string::npos) continue;
+
+        std::istringstream lines(response);
+        std::string line;
+        while (std::getline(lines, line)) {
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            if (line.rfind("id name ", 0) == 0) g_sfEngineName = line.substr(8);
+        }
+        if (g_sfEngineName.empty()) g_sfEngineName = "unnamed engine";
+        return true;
+    }
+
+    return false;
 }
 
 // Releases the handles of an engine that has gone away, so a relaunch starts
@@ -146,9 +213,20 @@ static void ReleaseStockfishHandles() {
 void LaunchStockfish(const std::string& path) {
     ReleaseStockfishHandles();
 
-    // Resolved once and remembered, so a restart after a crash uses the path
-    // that was actually found rather than searching again.
-    g_sfPath = ResolveEnginePath(path);
+    g_sfEngineRequested = path;
+    g_sfEngineName.clear();
+    g_sfEngineError.clear();
+
+    const std::filesystem::path resolved = ResolveEnginePath(path);
+    g_sfEngineResolved = resolved.u8string();
+
+    std::error_code ec;
+    if (resolved.empty() || !std::filesystem::exists(resolved, ec)) {
+        g_sfEngineError = "No engine at " +
+            (g_sfEngineResolved.empty() ? std::string("(nothing given)") : g_sfEngineResolved);
+        std::cerr << "[ERROR] " << g_sfEngineError << "\n";
+        return;
+    }
 
     SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
     HANDLE hStdOutRead = nullptr, hStdOutWrite = nullptr;
@@ -159,16 +237,24 @@ void LaunchStockfish(const std::string& path) {
     CreatePipe(&hStdInRead, &hStdInWrite, &sa, 0);
     SetHandleInformation(hStdInWrite, HANDLE_FLAG_INHERIT, 0);
 
-    STARTUPINFOA si = { 0 };
+    STARTUPINFOW si = { 0 };
     si.cb = sizeof(si);
     si.dwFlags |= STARTF_USESTDHANDLES;
     si.hStdOutput = hStdOutWrite;
     si.hStdError = hStdOutWrite;
     si.hStdInput = hStdInRead;
 
-    if (!CreateProcessA(g_sfPath.c_str(), nullptr, nullptr, nullptr, TRUE,
+    // The wide form, because the path now comes from the user and may contain
+    // characters the ANSI code page cannot represent.
+    const std::wstring executable = resolved.wstring();
+    if (!CreateProcessW(executable.c_str(), nullptr, nullptr, nullptr, TRUE,
         CREATE_NO_WINDOW, nullptr, nullptr, &si, &g_sfProcInfo)) {
-        std::cerr << "[ERROR] Failed to launch Stockfish from " << g_sfPath << "\n";
+        g_sfEngineError = "Could not start " + g_sfEngineResolved;
+        std::cerr << "[ERROR] " << g_sfEngineError << "\n";
+        CloseHandle(hStdOutRead);
+        CloseHandle(hStdOutWrite);
+        CloseHandle(hStdInRead);
+        CloseHandle(hStdInWrite);
         return;
     }
 
@@ -179,7 +265,26 @@ void LaunchStockfish(const std::string& path) {
     g_sfOutput = hStdOutRead;
     g_sfRunning = true;
 
-    SendCommand("uci\n");
+    // A binary that starts but never answers "uci" is not an engine, and saying
+    // so here is far kinder than every later search quietly timing out.
+    if (!CompleteHandshake()) {
+        g_sfEngineError = g_sfEngineResolved + " did not answer the UCI handshake";
+        std::cerr << "[ERROR] " << g_sfEngineError << "\n";
+
+        // Ask, then insist. Something that ignored "uci" has no reason to
+        // understand "quit" either, and leaving it running would leak a process
+        // on every attempt to load the wrong file.
+        SendCommand("quit\n");
+        if (g_sfProcInfo.hProcess &&
+            WaitForSingleObject(g_sfProcInfo.hProcess, 200) != WAIT_OBJECT_0) {
+            TerminateProcess(g_sfProcInfo.hProcess, 0);
+        }
+
+        ReleaseStockfishHandles();
+        return;
+    }
+
+    std::cerr << "[INFO] Engine: " << g_sfEngineName << " (" << g_sfEngineResolved << ")\n";
 }
 
 bool StockfishIsAlive() {
@@ -217,7 +322,7 @@ bool StockfishIsAlive() {
         lastRestartTick = now;
 
         // LaunchStockfish does not take the mutex, so calling it here is safe.
-        LaunchStockfish(g_sfPath);
+        LaunchStockfish(g_sfEngineRequested);
         g_sfPreviousMoves.clear();
         if (!g_sfRunning) return false;
     }
@@ -226,21 +331,13 @@ bool StockfishIsAlive() {
     SendCommand("isready\n");
 
     std::string response;
-    char buffer[128];
-    DWORD bytesRead = 0;
-    DWORD startTick = GetTickCount();
+    const DWORD startTick = GetTickCount();
 
     while (GetTickCount() - startTick < 500) {
-        if (ReadFile(g_sfOutput, buffer, sizeof(buffer) - 1, &bytesRead, nullptr) && bytesRead > 0) {
-            buffer[bytesRead] = '\0';
-            response += buffer;
-            if (response.find("readyok") != std::string::npos) {
-                lastResult = true;
-                return true;
-            }
-        }
-        else {
-            Sleep(5);
+        if (!ReadAvailable(response)) { Sleep(5); continue; }
+        if (response.find("readyok") != std::string::npos) {
+            lastResult = true;
+            return true;
         }
     }
 
@@ -290,17 +387,13 @@ std::vector<StockfishMove> GetBestMoves(const std::string& fen, int elo, int top
     // does when it finds a forced mate.
     std::map<int, StockfishMove> byRank;
 
-    char buffer[512];
-    DWORD bytesRead = 0;
     std::string response;
     size_t consumed = 0;
 
-    DWORD startTick = GetTickCount();
+    const DWORD startTick = GetTickCount();
     while (GetTickCount() - startTick < 5000) {
-        if (ReadFile(g_sfOutput, buffer, sizeof(buffer) - 1, &bytesRead, nullptr) && bytesRead > 0) {
-            buffer[bytesRead] = '\0';
-            response += buffer;
-
+        if (!ReadAvailable(response)) { Sleep(10); }
+        {
             // Only walk what has arrived since the last pass. The old code
             // re-parsed the whole accumulated response on every read.
             size_t newline;
@@ -338,9 +431,6 @@ std::vector<StockfishMove> GetBestMoves(const std::string& fen, int elo, int top
                     return moves;
                 }
             }
-        }
-        else {
-            Sleep(10);
         }
     }
 

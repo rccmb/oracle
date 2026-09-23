@@ -440,20 +440,51 @@ void ShowMenu(int imageWidth, int imageHeight) {
                 moveVerdictByUs = g_lastMoveVerdictByUs;
             }
 
-            /* STOCKFISH RELATED. */
+            /* ENGINE. */
             bool stockfishAlive = StockfishIsAlive();
 
             ImVec4 colAlive = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
             ImVec4 colDead = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
 
-            ImGui::Text("Stockfish is: ");
+            // The engine's own name, not "Stockfish": whatever answered the UCI
+            // handshake is what is running, and saying which is the only way a
+            // user can tell that the engine they chose actually took.
+            ImGui::Text("Engine:");
             ImGui::SameLine();
             if (stockfishAlive) {
-                ImGui::TextColored(colAlive, "ALIVE");
+                ImGui::TextColored(colAlive, "%s",
+                    g_sfEngineName.empty() ? "running" : g_sfEngineName.c_str());
             }
             else {
-                ImGui::TextColored(colDead, "DEAD");
+                ImGui::TextColored(colDead, "not running");
             }
+
+            if (!g_sfEngineResolved.empty()) {
+                ImGui::TextDisabled("%s", g_sfEngineResolved.c_str());
+            }
+            if (!g_sfEngineError.empty()) {
+                ImGui::TextColored(ImVec4(1, 0.4f, 0.35f, 1), "%s", g_sfEngineError.c_str());
+            }
+
+            // Any UCI engine will do. Empty means the bundled Stockfish.
+            static char enginePath[512] = "";
+            static bool enginePathLoaded = false;
+            if (!enginePathLoaded) {
+                std::snprintf(enginePath, sizeof(enginePath), "%s", g_sfEngineRequested.c_str());
+                enginePathLoaded = true;
+            }
+
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 70.0f);
+            ImGui::InputTextWithHint("##enginePath", "path to a UCI engine, blank for bundled",
+                                     enginePath, sizeof(enginePath));
+            ImGui::SameLine();
+            if (ImGui::Button("Load")) {
+                LaunchStockfish(enginePath);
+                std::lock_guard<std::mutex> reset(g_analysisStateMutex);
+                g_sfBestMoves.clear();
+            }
+
+            ImGui::Separator();
 
             ImGui::Checkbox("Limit engine strength", &g_sfLimitStrength);
             ImGui::BeginDisabled(!g_sfLimitStrength);

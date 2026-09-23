@@ -1080,3 +1080,10 @@ tools/TrackerCheck/*.exe
 tools/TrackerCheck/*.obj
 tools/TrackerCheck/*.pdb
 tools/TrackerCheck/*.ilk
+
+# Oracle: engine check tool build output
+tools/EngineCheck/*.exe
+tools/EngineCheck/*.obj
+tools/EngineCheck/*.dll
+tools/EngineCheck/*.pdb
+tools/EngineCheck/*.ilk

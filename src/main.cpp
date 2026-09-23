@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <WinBase.h>
+#include <shellapi.h>
 
 #include "platform/Utils.h"
 #include "Globals.h"
@@ -21,6 +22,34 @@
 #include "imgui.h"
 
 static bool IMGUI_MENU_VISIBLE = false;
+
+// Engine given as "--engine <path>", or empty for the bundled one.
+//
+// Read from GetCommandLineW rather than the PSTR WinMain is handed, so a path
+// with spaces or non-ASCII characters survives, which the narrow argument does
+// not reliably manage.
+static std::string EngineFromCommandLine() {
+    int count = 0;
+    LPWSTR* arguments = CommandLineToArgvW(GetCommandLineW(), &count);
+    if (!arguments) return {};
+
+    std::string engine;
+    for (int i = 1; i + 1 < count; ++i) {
+        if (wcscmp(arguments[i], L"--engine") != 0) continue;
+
+        const int bytes = WideCharToMultiByte(CP_UTF8, 0, arguments[i + 1], -1,
+                                              nullptr, 0, nullptr, nullptr);
+        if (bytes > 1) {
+            engine.resize((size_t)bytes - 1);
+            WideCharToMultiByte(CP_UTF8, 0, arguments[i + 1], -1,
+                                engine.data(), bytes, nullptr, nullptr);
+        }
+        break;
+    }
+
+    LocalFree(arguments);
+    return engine;
+}
 
 void CaptureBoardClicks() {
     ImGuiIO& io = ImGui::GetIO();
@@ -407,8 +436,9 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
     // Initializing ImGui.
     InitializeImGui(hwndOverlay, g_pd3dDevice, g_pd3dDeviceContext);
 
-    // Initializing Stockfish.
-    LaunchStockfish("stockfish/stockfish.exe");
+    // Any UCI engine, not just the bundled one. Empty means "find the bundled
+    // Stockfish", which is what happens when the flag is not given.
+    LaunchStockfish(EngineFromCommandLine());
 
     bool analysisNotStarted = true;
 

@@ -95,6 +95,7 @@ oracle/
 │   ├── imgui/                     # Vendored Dear ImGui (do not modify)
 │   └── stockfish/                 # Bundled Stockfish (do not modify)
 ├── tools/
+│   ├── EngineCheck/               # Drives a UCI engine of your choice
 │   ├── PerftCheck/                # Move generator, against the perft suite
 │   ├── TrackerCheck/              # Game tracking across frames
 │   ├── FenCheck/                  # Castling rights and position validation

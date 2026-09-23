@@ -34,7 +34,7 @@
 - **Live Evaluation Bar** - Glides as the search deepens instead of jumping when it finishes.
 - **Blunder Callouts** - Says what the last move cost, for either side, above the board.
 - **Piece Recognition** - Identifies pieces using chamfer distance matching against reference images generated during calibration.
-- **Stockfish Integration** - Communicates with a bundled Stockfish engine via the UCI protocol to compute the best moves in real time.
+- **Any UCI Engine** - Oracle speaks plain UCI over a pipe; Stockfish is only what is bundled. Point it at your own with `--engine` or from the menu.
 - **Transparent Overlay** - Renders a DirectX 11 overlay on top of your screen, drawing the detected board rectangle and configuration guides without blocking your view.
 - **ImGui Control Panel** - A fully interactive menu for calibration, analysis tuning, Stockfish settings, and a live board preview with color-coded move suggestions.
 - **Platform-Independent Board Support** - Works with any chess website or desktop application - if you can see the board on your screen, Oracle can detect it.
@@ -121,6 +121,30 @@ Launch from Visual Studio (`F5`) or run the compiled executable directly from
 `x64/<configuration>/`. The engine and the reference pieces are found relative to
 the executable, so it does not matter which directory Oracle is started from.
 
+## Using Your Own Engine
+
+Oracle is not tied to Stockfish. It speaks plain UCI over a pipe: `uci`,
+`isready`, `setoption`, `position fen`, `go depth`, and it reads back the `info`
+lines and `bestmove`. Any engine that answers that will work.
+
+```
+Oracle.exe --engine "C:\engines\myengine.exe"
+```
+
+or type a path into the Engine box in the menu and press Load. Oracle reports the
+engine's own `id name` once it has answered, so you can see which one is actually
+running. A relative path is resolved against the executable, so an engine dropped
+beside `Oracle.exe` can be named on its own.
+
+`MultiPV` is worth having, since it is what fills the ranked suggestions, but an
+engine without it still works and shows one move. `UCI_LimitStrength` and
+`UCI_Elo` are only sent when strength limiting is on, and the protocol requires
+an engine to ignore options it does not recognise.
+
+[tools/EngineCheck](tools/EngineCheck/README.md) runs the same code against an
+engine of your choice and prints what came back, so you can check one without
+launching the overlay.
+
 ## Usage
 
 ### Hotkeys
@@ -174,6 +198,7 @@ oracle/
 │   ├── imgui/                     # Vendored Dear ImGui (do not modify)
 │   └── stockfish/                 # Bundled Stockfish (do not modify)
 ├── tools/
+│   ├── EngineCheck/               # Drives a UCI engine of your choice
 │   ├── PerftCheck/                # Move generator, against the perft suite
 │   ├── TrackerCheck/              # Game tracking across frames
 │   ├── FenCheck/                  # Castling rights and position validation
