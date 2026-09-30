@@ -181,7 +181,7 @@ Always branch from `main` (or `develop` once it exists) and submit PRs back to i
 2. **Test manually** - Since there is no automated test suite yet, verify your changes against at least one chess website (e.g., Lichess, Chess.com).
 3. **Build in both Debug and Release** to catch configuration-specific issues.
 4. **Check for regressions** - Make sure the calibration flow, board detection, and Stockfish integration still work end-to-end.
-5. **Look at interface changes** - The overlay cannot be screenshotted, so render `tools/UiPreview` before and after a change to the menu or the overlay and compare the two.
+5. **Look at interface changes** - The overlay cannot be screenshotted, so render `tools/UiPreview` before and after a change to the menu or the overlay and compare the two. [DESIGN.md](DESIGN.md) holds the palette, type and components to build with.
 
 ### Areas Marked with TODO
 

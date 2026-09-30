@@ -198,6 +198,8 @@ never disagree about what a colour means.
 kinds, icon buttons, toggles, sliders, a segmented control, tabs with a sliding
 underline, cards, banners, and the rank disc the overlay draws on the board.
 
+[DESIGN.md](DESIGN.md) records the system these implement.
+
 ---
 
 ### Computer Vision Pipeline
