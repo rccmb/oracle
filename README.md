@@ -193,7 +193,8 @@ oracle/
 │   │   ├── Direct3D.cpp/h         #   D3D11 device, swap chain, render target
 │   │   └── FileHandler.cpp/h      #   Reference piece image I/O
 │   └── ui/
-│       └── Menu.cpp/h             # ImGui: setup, settings, preview, evaluation
+│       ├── Menu.cpp/h             # ImGui: setup, settings, preview, evaluation
+│       └── BoardOverlay.cpp/h     # Badges, arrows and callouts drawn over the board
 ├── third_party/
 │   ├── imgui/                     # Vendored Dear ImGui (do not modify)
 │   └── stockfish/                 # Bundled Stockfish (do not modify)

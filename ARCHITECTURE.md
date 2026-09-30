@@ -45,7 +45,7 @@ Oracle is a single-process Windows desktop application composed of two concurren
 | Responsibility | Details |
 |---|---|
 | Application lifecycle | Creates the overlay window, D3D11 device, and launches Stockfish |
-| Render loop | Calls `RenderFrame()` every ~10ms to draw the overlay and ImGui |
+| Render loop | Calls `RenderFrame()` every ~10ms, which draws `DrawBoardOverlay()` and then the menu |
 | Hotkey handling | Listens for `Ctrl+F1` (or `Numpad+/-`) to toggle the menu |
 | Calibration input | Forwards `Ctrl+LMB` clicks to `SetBoardClicks()` during configuration |
 | Thread management | Spawns the `ChessboardDetectionThread` once analysis begins |
@@ -109,12 +109,17 @@ Creates a fullscreen, transparent, always-on-top, click-through Win32 window. Th
 **Window styles:**
 - `WS_EX_TOPMOST` - Always on top of other windows.
 - `WS_EX_TRANSPARENT` - Clicks pass through to underlying windows (toggled when the menu is visible).
-- `WS_EX_LAYERED` - Required for per-pixel transparency.
+- `WS_EX_LAYERED` with a colour key of pure black - Black pixels are transparent and every other pixel is opaque.
 
-The overlay draws:
-- A green rectangle around the detected board.
-- Cyan-filled rectangles for sample points (during configuration).
-- Yellow rectangles for crop regions (during configuration).
+That last point decides how anything drawn over the board must be coloured.
+There is no per-pixel alpha between the overlay and the page beneath it: a colour
+drawn with alpha is blended with the black the frame was cleared to, and the
+result is shown opaque. A translucent yellow therefore arrives on screen as an
+opaque brown. Overlay colours are chosen as the opaque colours they will be, and
+pure black is never drawn on purpose, since it would punch a hole.
+
+The window is also excluded from screen capture, so Oracle never reads its own
+drawing back as part of the board.
 
 ---
 
@@ -129,7 +134,20 @@ Manages the D3D11 rendering pipeline:
 | `CleanupRenderTarget()` | Releases the render target |
 | `CleanupDirect3D()` | Full cleanup of all D3D11 resources |
 
-The swap chain uses `DXGI_FORMAT_R8G8B8A8_UNORM` with a transparent clear color `(0, 0, 0, 0)` to achieve the see-through overlay effect.
+The swap chain uses `DXGI_FORMAT_R8G8B8A8_UNORM` and is cleared to black every
+frame, which the overlay window's colour key turns into see-through.
+
+---
+
+#### `BoardOverlay.h / BoardOverlay.cpp` - Drawing Over the Board
+
+Everything drawn on top of the board rather than in the menu: the board outline,
+the calibration guides, the callout for the last move, and each suggestion's
+numbered badges and arrow. `DrawBoardOverlay()` takes the draw list to use and
+reads the shared analysis state, copying it under `g_analysisStateMutex` first.
+
+It is a function of its own, rather than part of the render loop, so it can be
+drawn somewhere other than the live overlay.
 
 ---
 

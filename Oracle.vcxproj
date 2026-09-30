@@ -164,6 +164,7 @@
     <ClCompile Include="src\chess\ChessRules.cpp" />
     <ClCompile Include="src\chess\GameTracker.cpp" />
     <ClCompile Include="src\vision\ChessboardDetection.cpp" />
+    <ClCompile Include="src\ui\BoardOverlay.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\platform\Direct3D.h" />
@@ -187,6 +188,7 @@
     <ClInclude Include="src\chess\ChessRules.h" />
     <ClInclude Include="src\chess\GameTracker.h" />
     <ClInclude Include="src\vision\ChessboardDetection.h" />
+    <ClInclude Include="src\ui\BoardOverlay.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Target Name="CopyOpenCVRuntime" AfterTargets="Build" Condition="'$(Platform)'=='x64'">
