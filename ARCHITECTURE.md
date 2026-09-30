@@ -142,10 +142,25 @@ frame, which the overlay window's colour key turns into see-through.
 
 #### `BoardOverlay.h / BoardOverlay.cpp` - Drawing Over the Board
 
-Everything drawn on top of the board rather than in the menu: the board outline,
-the calibration guides, the callout for the last move, and each suggestion's
-numbered badges and arrow. `DrawBoardOverlay()` takes the draw list to use and
-reads the shared analysis state, copying it under `g_analysisStateMutex` first.
+Everything drawn on top of the board rather than in the menu. `DrawBoardOverlay()`
+takes the draw list to use and reads the shared analysis state, copying it under
+`g_analysisStateMutex` first.
+
+| Element | What it shows |
+|---|---|
+| Tracking corners | Which board is being followed: blue while the game makes sense, amber once it does not, grey while calibrating |
+| Evaluation bar | Beside the board, the side being played at the bottom, easing towards each depth's score; the score rides the boundary, with a spinner while the position on the board is still being searched |
+| Callout | Above the board: the last move's verdict as `??`, `?` or `?!`, who played it, what it cost and what was best, or how the game ended |
+| Badges and arrows | Each suggestion's rank at both ends of the move and a black arrow between them, drawn only for the position on the board and only on our turn |
+| Calibration guides | Sample points and crop regions while calibrating by hand |
+
+Checkmate and stalemate are read off the tracked position, not from the engine,
+which has no score to give once the game is over.
+
+Nothing here relies on alpha to look translucent, because the window is colour
+keyed (see above), and motion is movement, never a fade: arrows extend from the
+piece, badges settle into place, the callout slides in. Suggestions animate once
+per new set, keyed on the position and the moves.
 
 It is a function of its own, rather than part of the render loop, so it can be
 drawn somewhere other than the live overlay: `tools/UiPreview` draws it offscreen.

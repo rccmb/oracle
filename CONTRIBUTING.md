@@ -91,7 +91,7 @@ oracle/
 │   │   └── FileHandler.cpp/h      #   Reference piece image I/O
 │   └── ui/
 │       ├── Menu.cpp/h             # The panel: Play, Engine and Calibrate tabs
-│       ├── BoardOverlay.cpp/h     # Badges, arrows and callouts drawn over the board
+│       ├── BoardOverlay.cpp/h     # Badges, arrows, eval bar and callouts over the board
 │       ├── Theme.cpp/h            # Palette, fonts and style, shared by both
 │       └── Widgets.cpp/h          # Buttons, toggles, sliders, tabs, cards
 ├── third_party/

@@ -31,9 +31,10 @@
 - **Multi-Monitor and High-DPI** - Per-monitor DPI aware, and the board can sit on any display.
 - **Follows the Game** - Tracks the real position across moves rather than re-reading the board each frame, so castling, en passant, takebacks and premoves are all handled, and a frame caught mid-animation is rejected instead of believed.
 - **Numbered Moves and Arrows** - Every suggestion is drawn on the board, ranked and colour-coded by evaluation.
-- **Live Evaluation Bar** - Glides as the search deepens instead of jumping when it finishes.
-- **Blunder Callouts** - Says what the last move cost, for either side, above the board.
+- **Evaluation Bar Beside the Board** - Your side at the bottom, the score riding the boundary, gliding as the search deepens instead of jumping when it finishes.
+- **Blunder Callouts** - Says what the last move cost, for either side, above the board, annotated `??`, `?` or `?!`, with the move the engine wanted instead.
 - **Real Notation** - Moves are written the way players write them, `Nf3` rather than `g1f3`.
+- **Tracking Corners** - Four marks frame the board being followed, and turn amber when the board stops matching the game.
 - **Piece Recognition** - Identifies pieces using chamfer distance matching against reference images generated during calibration.
 - **Any UCI Engine** - Oracle speaks plain UCI over a pipe; Stockfish is only what is bundled. Point it at your own with `--engine` or from the menu.
 - **Transparent Overlay** - Renders a DirectX 11 overlay on top of your screen, click-through, and invisible to screen capture so Oracle never reads its own drawing.
@@ -167,9 +168,9 @@ launching the overlay.
    change it there before detecting if you want your own.
 4. **Detect** - Click **Detect board**. Analysis begins as soon as it succeeds, and
    Oracle suggests moves for the side at the bottom of the board.
-5. **Play** - Suggestions and callouts appear on the board itself. The Play tab
-   adds the evaluation, the board as Oracle reads it, and the ranked moves in
-   notation.
+5. **Play** - Suggestions, the evaluation bar and callouts appear on the board
+   itself. The Play tab adds the evaluation in words, the board as Oracle reads it,
+   and the ranked moves in notation.
 6. **Adjust engine** - Depth, the number of moves shown and strength are in the
    Engine tab, and take effect on the position already on the board. The engine
    runs at full strength unless "Limit strength" is on.
@@ -203,7 +204,7 @@ oracle/
 │   │   └── FileHandler.cpp/h      #   Reference piece image I/O
 │   └── ui/
 │       ├── Menu.cpp/h             # The panel: Play, Engine and Calibrate tabs
-│       ├── BoardOverlay.cpp/h     # Badges, arrows and callouts drawn over the board
+│       ├── BoardOverlay.cpp/h     # Badges, arrows, eval bar and callouts over the board
 │       ├── Theme.cpp/h            # Palette, fonts and style, shared by both
 │       └── Widgets.cpp/h          # Buttons, toggles, sliders, tabs, cards
 ├── third_party/
