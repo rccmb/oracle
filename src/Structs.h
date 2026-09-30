@@ -41,4 +41,5 @@ struct StockfishMove {
     bool mate = false;  // True if this is a mate score.
     int mateIn = 0;     // Number of moves to mate.
     int multipv = 1;    // Engine's own ranking, 1 being its first choice.
+    std::string san;    // The same move in algebraic notation, "Nf3" for "g1f3".
 };

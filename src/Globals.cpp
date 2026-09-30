@@ -77,6 +77,7 @@ char g_sideToMove = 'w';
 
 std::string g_trackedFen = "";
 std::string g_lastMoveUci = "";
+std::string g_lastMoveSan = "";
 int g_trackerPly = 0;
 bool g_trackerInSync = true;
 bool g_sfMovesAreOurs = true;
@@ -91,5 +92,7 @@ std::atomic<int> g_liveEvalDepth{ 0 };
 
 std::string g_lastMoveVerdict = "";
 std::string g_lastMoveVerdictUci = "";
+std::string g_lastMoveVerdictSan = "";
+std::string g_lastMoveVerdictBestSan = "";
 int g_lastMoveLossCp = 0;
 bool g_lastMoveVerdictByUs = false;

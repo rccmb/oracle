@@ -289,6 +289,10 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
     bool previousWhiteToMove = true;
     int previousVerdictPly = -1;
 
+    // The engine's first choice in that same position, in SAN, so a verdict can
+    // say what should have been played instead.
+    std::string previousBestSan;
+
     // Continuous analysis loop.
     while(true) {
         while (g_hasAnalysisStarted) {
@@ -301,6 +305,7 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                 g_liveEvalValid.store(false);
                 previousEvaluatedPly = -1;
                 previousVerdictPly = -1;
+                previousBestSan.clear();
                 templatesScaledFor = -1;
                 {
                     std::lock_guard<std::mutex> lock(g_highlightMutex);
@@ -312,7 +317,12 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                 g_trackerPly = 0;
                 g_trackerInSync = true;
                 g_lastMoveUci.clear();
+                g_lastMoveSan.clear();
                 g_sfBestMoves.clear();
+                g_lastMoveVerdict.clear();
+                g_lastMoveVerdictUci.clear();
+                g_lastMoveVerdictSan.clear();
+                g_lastMoveVerdictBestSan.clear();
             }
 
             // Re-read the board every pass. These used to be computed once when
@@ -573,17 +583,21 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                 g_sideToMove = (tracker.Position().SideToMove() == Color::White) ? 'w' : 'b';
                 g_lastMoveUci = tracker.History().empty() ? std::string()
                                                           : tracker.History().back().uci;
+                g_lastMoveSan = tracker.History().empty() ? std::string()
+                                                          : tracker.History().back().san;
             }
 
             if (StockfishIsAlive()) {
                 std::string fen;
                 std::string movePlayed;
+                std::string movePlayedSan;
                 int plyNow = 0;
                 {
                     std::lock_guard<std::mutex> snapshot(g_analysisStateMutex);
                     fen = g_trackedFen;
                     plyNow = g_trackerPly;
                     movePlayed = g_lastMoveUci;
+                    movePlayedSan = g_lastMoveSan;
                 }
 
                 static std::string lastQueriedFen;
@@ -594,6 +608,12 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                     // its result is published.
                     std::vector<StockfishMove> moves =
                         GetBestMoves(fen, g_sfElo, g_sfNumberMoves, g_sfMoveDepth);
+
+                    // In the notation a player reads, worked out here, in the
+                    // position the engine was actually asked about.
+                    if (const std::optional<ChessPosition> searched = ChessPosition::FromFen(fen)) {
+                        for (StockfishMove& move : moves) move.san = UciToSan(*searched, move.uci);
+                    }
 
                     // What the position is worth now that the search has settled,
                     // on one scale that puts mates at the extremes so a move can
@@ -633,9 +653,14 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                         byUs = (previousWhiteToMove == g_sfPlayWhite);
                     }
 
+                    // What the engine wanted in the position before this one,
+                    // which is what the move just judged should have been.
+                    const std::string bestInstead = previousBestSan;
+
                     previousEvaluatedPly = plyNow;
                     previousScore = scoreNow;
                     previousWhiteToMove = whiteToMoveHere;
+                    previousBestSan = moves.empty() ? std::string() : moves.front().san;
 
                     std::lock_guard<std::mutex> publish(g_analysisStateMutex);
                     g_sfBestMoves = std::move(moves);
@@ -646,6 +671,8 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                         g_lastMoveLossCp = lossCp;
                         g_lastMoveVerdictByUs = byUs;
                         g_lastMoveVerdictUci = movePlayed;
+                        g_lastMoveVerdictSan = movePlayedSan.empty() ? movePlayed : movePlayedSan;
+                        g_lastMoveVerdictBestSan = bestInstead;
                     }
                     else if (plyNow != previousVerdictPly) {
                         // A sound move clears the previous callout rather than
@@ -653,6 +680,8 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                         g_lastMoveVerdict.clear();
                         g_lastMoveLossCp = 0;
                         g_lastMoveVerdictUci.clear();
+                        g_lastMoveVerdictSan.clear();
+                        g_lastMoveVerdictBestSan.clear();
                     }
                     previousVerdictPly = plyNow;
                 }

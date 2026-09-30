@@ -480,13 +480,13 @@ void ShowMenu(int imageWidth, int imageHeight) {
                 std::lock_guard<std::mutex> snapshot(g_analysisStateMutex);
                 boardRows = g_boardGridRows;
                 bestMoves = g_sfBestMoves;
-                lastMoveUci = g_lastMoveUci;
+                lastMoveUci = g_lastMoveSan.empty() ? g_lastMoveUci : g_lastMoveSan;
                 trackerPly = g_trackerPly;
                 trackerInSync = g_trackerInSync;
                 movesAreOurs = g_sfMovesAreOurs;
                 sideToMove = g_sideToMove;
                 moveVerdict = g_lastMoveVerdict;
-                moveVerdictUci = g_lastMoveVerdictUci;
+                moveVerdictUci = g_lastMoveVerdictSan.empty() ? g_lastMoveVerdictUci : g_lastMoveVerdictSan;
                 moveVerdictLoss = g_lastMoveLossCp;
                 moveVerdictByUs = g_lastMoveVerdictByUs;
             }
@@ -743,25 +743,25 @@ void ShowMenu(int imageWidth, int imageHeight) {
                     ImGui::TableSetColumnIndex(0);
                     for (const auto& mv : greenMoves) {
                         if (mv.mate)
-                            ImGui::TextColored(ImVec4(0.1f, 1.0f, 0.1f, 1.0f), "%s (mate in %d)", mv.uci.c_str(), mv.mateIn);
+                            ImGui::TextColored(ImVec4(0.1f, 1.0f, 0.1f, 1.0f), "%s (mate in %d)", (mv.san.empty() ? mv.uci : mv.san).c_str(), mv.mateIn);
                         else
-                            ImGui::TextColored(ImVec4(0.1f, 1.0f, 0.1f, 1.0f), "%s (%d cp)", mv.uci.c_str(), mv.scoreCp);
+                            ImGui::TextColored(ImVec4(0.1f, 1.0f, 0.1f, 1.0f), "%s (%d cp)", (mv.san.empty() ? mv.uci : mv.san).c_str(), mv.scoreCp);
                     }
 
                     ImGui::TableSetColumnIndex(1);
                     for (const auto& mv : yellowMoves) {
                         if (mv.mate)
-                            ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.2f, 1.0f), "%s (mate in %d)", mv.uci.c_str(), mv.mateIn);
+                            ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.2f, 1.0f), "%s (mate in %d)", (mv.san.empty() ? mv.uci : mv.san).c_str(), mv.mateIn);
                         else
-                            ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.2f, 1.0f), "%s (%d cp)", mv.uci.c_str(), mv.scoreCp);
+                            ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.2f, 1.0f), "%s (%d cp)", (mv.san.empty() ? mv.uci : mv.san).c_str(), mv.scoreCp);
                     }
 
                     ImGui::TableSetColumnIndex(2);
                     for (const auto& mv : redMoves) {
                         if (mv.mate)
-                            ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "%s (mate in %d)", mv.uci.c_str(), mv.mateIn);
+                            ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "%s (mate in %d)", (mv.san.empty() ? mv.uci : mv.san).c_str(), mv.mateIn);
                         else
-                            ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "%s (%d cp)", mv.uci.c_str(), mv.scoreCp);
+                            ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "%s (%d cp)", (mv.san.empty() ? mv.uci : mv.san).c_str(), mv.scoreCp);
                     }
 
                     ImGui::EndTable();

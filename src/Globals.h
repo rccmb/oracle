@@ -117,6 +117,7 @@ extern char g_sideToMove;
 // The tracked game, published for the interface.
 extern std::string g_trackedFen;   // Position the engine is being asked about.
 extern std::string g_lastMoveUci;  // Move that produced it, or empty.
+extern std::string g_lastMoveSan;  // The same move in algebraic notation.
 extern int g_trackerPly;           // Plies played so far.
 extern bool g_trackerInSync;       // False once the board has stopped making sense.
 extern bool g_sfMovesAreOurs;      // Whether the suggestions belong to the side being played.
@@ -145,5 +146,7 @@ extern std::atomic<int> g_liveEvalDepth;
 // What the last move cost whoever played it. Empty when the move was sound.
 extern std::string g_lastMoveVerdict;      // "Blunder", "Mistake" or "Inaccuracy".
 extern std::string g_lastMoveVerdictUci;   // The move being judged.
+extern std::string g_lastMoveVerdictSan;   // The same, in algebraic notation.
+extern std::string g_lastMoveVerdictBestSan; // What the engine preferred in its place.
 extern int g_lastMoveLossCp;               // Centipawns lost by the side that moved.
 extern bool g_lastMoveVerdictByUs;         // Whether that side is the one being played.

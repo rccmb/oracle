@@ -62,7 +62,7 @@ void DrawBoardOverlay(ImDrawList* draw_list) {
         bestMoves = g_sfBestMoves;
         movesAreOurs = g_sfMovesAreOurs;
         moveVerdict = g_lastMoveVerdict;
-        moveVerdictUci = g_lastMoveVerdictUci;
+        moveVerdictUci = g_lastMoveVerdictSan.empty() ? g_lastMoveVerdictUci : g_lastMoveVerdictSan;
         moveVerdictLoss = g_lastMoveLossCp;
         moveVerdictByUs = g_lastMoveVerdictByUs;
     }

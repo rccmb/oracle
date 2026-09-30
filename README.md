@@ -33,6 +33,7 @@
 - **Numbered Moves and Arrows** - Every suggestion is drawn on the board, ranked and colour-coded by evaluation.
 - **Live Evaluation Bar** - Glides as the search deepens instead of jumping when it finishes.
 - **Blunder Callouts** - Says what the last move cost, for either side, above the board.
+- **Real Notation** - Moves are written the way players write them, `Nf3` rather than `g1f3`.
 - **Piece Recognition** - Identifies pieces using chamfer distance matching against reference images generated during calibration.
 - **Any UCI Engine** - Oracle speaks plain UCI over a pipe; Stockfish is only what is bundled. Point it at your own with `--engine` or from the menu.
 - **Transparent Overlay** - Renders a DirectX 11 overlay on top of your screen, drawing the detected board rectangle and configuration guides without blocking your view.
