@@ -61,6 +61,10 @@ extern std::string g_sfEngineError;      // Why the last launch failed, if it di
  */
 void LaunchStockfish(const std::string& path);
 
+// Counts successful launches. The analysis loop searches the position on the
+// board again when this changes, so a newly loaded engine answers at once.
+extern std::atomic<int> g_sfEngineGeneration;
+
 /**
  * @brief Starts an engine on a background thread and returns at once.
  *

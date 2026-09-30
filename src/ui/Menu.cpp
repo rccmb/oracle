@@ -709,7 +709,6 @@ void ShowMenu(int imageWidth, int imageHeight) {
             }
 
             /* STOCKFISH REAL-TIME MOVES. */
-            // TODO: The user may want to change Stockfish settings mid move, if so, it should re-render.
             if (stockfishAlive) {
                 ImGui::Separator();
 

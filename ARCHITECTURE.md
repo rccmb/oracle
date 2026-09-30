@@ -348,6 +348,11 @@ Manages the Stockfish process lifecycle and UCI communication:
 | `LaunchStockfishAsync()` | `LaunchStockfish()` on a background thread, queued behind any search in progress |
 | `StockfishLooksAlive()` | Liveness without waiting: while a search holds the engine, the last known answer |
 | `GetEngineStatus()` | A consistent copy of the engine's path, name and last error, safe from any thread |
+
+The analysis loop searches again whenever anything that shapes the answer
+changes, not only the position: the depth, the number of lines, the strength
+limit, or the engine itself, which `g_sfEngineGeneration` counts launches of.
+Moving a slider in the menu updates the suggestions on the board at once.
 | `GetBestMoves()` | Sets UCI options (ELO, MultiPV), sends `position fen ...`, runs `go depth N`, and parses `info` lines |
 | `ShutdownStockfish()` | Sends `quit` and cleans up process handles |
 

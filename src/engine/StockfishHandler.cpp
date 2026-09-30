@@ -40,6 +40,8 @@ static std::mutex g_sfStatusMutex;
 // True while LaunchStockfishAsync is starting an engine in the background.
 static std::atomic<bool> g_sfLoading{ false };
 
+std::atomic<int> g_sfEngineGeneration{ 0 };
+
 // Used when nothing else was asked for.
 static const char* kBundledEngine = "third_party/stockfish/stockfish.exe";
 
@@ -306,6 +308,10 @@ void LaunchStockfish(const std::string& path) {
         return;
     }
 
+    // A different engine, or the same one restarted, has not been asked about
+    // anything yet. Counting launches lets the analysis loop notice and search
+    // the position on the board again rather than waiting for the next move.
+    ++g_sfEngineGeneration;
     std::cerr << "[INFO] Engine: " << GetEngineStatus().name << " (" << resolvedText << ")\n";
 }
 

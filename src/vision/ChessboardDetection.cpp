@@ -601,8 +601,18 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                     movePlayedSan = g_lastMoveSan;
                 }
 
-                static std::string lastQueriedFen;
-                if (!fen.empty() && fen != lastQueriedFen) {
+                // The position, and everything about how it is searched. A
+                // different depth, number of lines or strength, or a different
+                // engine, asks again at once instead of leaving the old answer
+                // up until the next move is played.
+                const std::string queryKey = fen
+                    + '|' + std::to_string(g_sfMoveDepth)
+                    + '|' + std::to_string(g_sfNumberMoves)
+                    + '|' + (g_sfLimitStrength ? std::to_string(g_sfElo) : std::string("full"))
+                    + '|' + std::to_string(g_sfEngineGeneration.load());
+
+                static std::string lastQueriedKey;
+                if (!fen.empty() && queryKey != lastQueriedKey) {
                     const bool whiteToMoveHere = ScoreSideToMoveIsWhite(fen);
 
                     // The engine call blocks, so it runs outside the lock and only
@@ -666,7 +676,7 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                     std::lock_guard<std::mutex> publish(g_analysisStateMutex);
                     g_sfBestMoves = std::move(moves);
                     g_sfBestMovesFen = fen;
-                    lastQueriedFen = fen;
+                    lastQueriedKey = queryKey;
 
                     if (!verdict.empty()) {
                         g_lastMoveVerdict = verdict;
