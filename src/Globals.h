@@ -122,6 +122,14 @@ extern int g_trackerPly;           // Plies played so far.
 extern bool g_trackerInSync;       // False once the board has stopped making sense.
 extern bool g_sfMovesAreOurs;      // Whether the suggestions belong to the side being played.
 
+// The position g_sfBestMoves were searched in. The tracker publishes a new
+// position the moment a move is seen, but the engine only answers once its
+// search finishes, so for that long the suggestions on hand belong to the
+// position before. Anything drawing them compares this with g_trackedFen
+// first; drawing them regardless put the opponent's candidate moves on the
+// board, as if they were ours, for as long as each search took.
+extern std::string g_sfBestMovesFen;
+
 // Set by the interface when the board is detected again, so the thread starts a
 // fresh game rather than trying to reconcile the new board against the old one.
 extern bool g_trackerResetRequested;

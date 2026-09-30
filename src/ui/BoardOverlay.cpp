@@ -59,7 +59,10 @@ void DrawBoardOverlay(ImDrawList* draw_list) {
     bool moveVerdictByUs = false;
     {
         std::lock_guard<std::mutex> snapshot(g_analysisStateMutex);
-        bestMoves = g_sfBestMoves;
+        // Only once the engine has answered for the position now on the board.
+        // Until then the moves on hand are the ones for the position before,
+        // which after the opponent moves are the opponent's own candidates.
+        if (g_sfBestMovesFen == g_trackedFen) bestMoves = g_sfBestMoves;
         movesAreOurs = g_sfMovesAreOurs;
         moveVerdict = g_lastMoveVerdict;
         moveVerdictUci = g_lastMoveVerdictSan.empty() ? g_lastMoveVerdictUci : g_lastMoveVerdictSan;

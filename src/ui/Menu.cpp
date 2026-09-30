@@ -69,6 +69,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
 
             std::lock_guard<std::mutex> reset(g_analysisStateMutex);
             g_sfBestMoves.clear();
+            g_sfBestMovesFen.clear();
         }
     }
 
@@ -268,6 +269,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
             g_detectedLetters.assign(64, ' ');
             g_boardGridRows.assign(8, std::string(8, ' '));
             g_sfBestMoves.clear();
+            g_sfBestMovesFen.clear();
         }
     }
     

@@ -319,6 +319,7 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
                 g_lastMoveUci.clear();
                 g_lastMoveSan.clear();
                 g_sfBestMoves.clear();
+                g_sfBestMovesFen.clear();
                 g_lastMoveVerdict.clear();
                 g_lastMoveVerdictUci.clear();
                 g_lastMoveVerdictSan.clear();
@@ -664,6 +665,7 @@ DWORD WINAPI ChessboardDetectionThread(LPVOID param) {
 
                     std::lock_guard<std::mutex> publish(g_analysisStateMutex);
                     g_sfBestMoves = std::move(moves);
+                    g_sfBestMovesFen = fen;
                     lastQueriedFen = fen;
 
                     if (!verdict.empty()) {

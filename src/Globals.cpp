@@ -78,6 +78,7 @@ char g_sideToMove = 'w';
 std::string g_trackedFen = "";
 std::string g_lastMoveUci = "";
 std::string g_lastMoveSan = "";
+std::string g_sfBestMovesFen = "";
 int g_trackerPly = 0;
 bool g_trackerInSync = true;
 bool g_sfMovesAreOurs = true;
