@@ -152,25 +152,36 @@ drawn somewhere other than the live overlay: `tools/UiPreview` draws it offscree
 
 ---
 
-#### `Menu.h / Menu.cpp` - ImGui User Interface
+#### `Menu.h / Menu.cpp` - The Panel
 
-The largest module by line count. Renders the complete ImGui interface using two windows:
+One window with a header and three tabs. The header carries the mark, the
+engine's status and name, and buttons to hide the panel and to quit.
 
-**Configuration Window (`oracle.pro`):**
-1. Screenshot capture button
-2. Board click status and reset
-3. Rescan board button
-4. Sample point sliders (patch size, X/Y offset)
-5. Crop region sliders (crop size, X/Y offset)
-6. Analysis tolerance slider
-7. Reference value display (grayscale + color swatches)
+| Tab | Contents |
+|---|---|
+| **Play**, before a board | The engine first, then the board, as a checklist, and **Detect board** |
+| **Play**, during a game | The evaluation in figures and words with its bar, whose move it is, the last move and any verdict, the board as Oracle reads it beside the ranked moves in SAN, and which side you play |
+| **Engine** | Path, file picker and Load; depth and moves shown; strength limit and Elo; move arrows |
+| **Calibrate** | The detected board and Rescan; match threshold and tolerance; learned highlight colours; reference colours; manual calibration and sampling geometry, folded away |
 
-**Analysis Window (`Real-Time Analysis`):**
-1. Stockfish status indicator (alive/dead)
-2. Engine sliders (ELO, depth, number of moves)
-3. Side selection (playing as white/black)
-4. Live 8×8 chessboard preview with Unicode pieces
-5. Color-coded move suggestions table (advantage/balanced/disadvantage)
+Detecting a board sets the side played to the side at the bottom. The menu reads
+the analysis state once per frame, under the lock, and never waits on the engine:
+see `g_sfMutex` below. `ConsumeMenuHideRequest()` lets the render loop, which owns
+showing and hiding, act on the panel's own hide button.
+
+---
+
+#### `Theme.h / Theme.cpp` and `Widgets.h / Widgets.cpp` - The Look
+
+`Theme` holds the palette, the type sizes and the fonts, and applies the ImGui
+style: Segoe UI and Segoe UI Semibold with Segoe Fluent Icons merged in, Cascadia
+Mono for data, Segoe UI Symbol for pieces, all scaled by the display's DPI.
+`EvaluationColor()` and `VerdictColor()` live here so the board and the menu can
+never disagree about what a colour means.
+
+`Widgets` builds the menu's controls from ImGui primitives: buttons in three
+kinds, icon buttons, toggles, sliders, a segmented control, tabs with a sliding
+underline, cards, banners, and the rank disc the overlay draws on the board.
 
 ---
 

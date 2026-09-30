@@ -29,13 +29,20 @@ started, so the menu reports what it would really report.
 
 | Scene | What it shows |
 |---|---|
-| `setup` | The menu before any board has been detected |
-| `game` | A game in progress, playing Black, with the menu open |
+| `setup` | The Play tab before any board has been detected |
+| `hover` | The same, with the pointer on the main button |
+| `game` | A game in progress, playing Black, our move, with the menu open |
 | `overlay` | The same game with the menu closed: the overlay alone |
+| `thinking` | The moment between a move and the engine's answer |
 | `verdict` | A lichess board, just after the opponent blundered |
+| `theirs` | The opponent to move: nothing drawn on the board, their options in the menu |
 | `lost` | The board no longer matching the tracked game |
 | `mate` | Checkmate |
+| `engine` | The Engine tab |
+| `calibrate` | The Calibrate tab |
+| `manual` | The Calibrate tab with manual calibration opened, before any board |
 | `screenshot` | The overlay over `screenshot.png` from the repository root, if there is one |
+| `glyphs` | Every icon the interface names, to check each exists in the icon font |
 
 The boards behind the scenes are drawn, in chess.com and lichess colours, with
 coordinates, a last move marked and player bars above and below, so the overlay

@@ -87,6 +87,12 @@
     <ClCompile Include="src\ui\BoardOverlay.cpp">
       <Filter>Source\ui</Filter>
     </ClCompile>
+    <ClCompile Include="src\ui\Theme.cpp">
+      <Filter>Source\ui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\Widgets.cpp">
+      <Filter>Source\ui</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\platform\Direct3D.h">
@@ -153,6 +159,12 @@
       <Filter>Source\vision</Filter>
     </ClInclude>
     <ClInclude Include="src\ui\BoardOverlay.h">
+      <Filter>Source\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ui\Theme.h">
+      <Filter>Source\ui</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ui\Widgets.h">
       <Filter>Source\ui</Filter>
     </ClInclude>
   </ItemGroup>

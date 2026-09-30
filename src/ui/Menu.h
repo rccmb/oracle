@@ -19,13 +19,31 @@
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
 
+// The menu's three tabs.
+enum class MenuTab {
+    Play,       // Setting up, then the game: evaluation, board and best moves.
+    Engine,     // Which engine, how deep it searches, how strong it plays.
+    Calibrate,  // How the board is read, and the manual fallback.
+};
+
 /**
- * @brief Responsible for rendering the ImGui menu with sliders to adjust debugging parameters.
+ * @brief Draws the menu: one panel with a header and the three tabs.
  *
- * @param imageWidth Width of the image for setting slider limits.
- * @param imageHeight Height of the image for setting slider limits.
+ * @param imageWidth Unused; kept for the render loop's call.
+ * @param imageHeight Unused; kept for the render loop's call.
  */
 void ShowMenu(int imageWidth, int imageHeight);
+
+/**
+ * @brief Whether the menu's own hide button was pressed since last asked.
+ *
+ * The render loop owns showing and hiding, since hiding also makes the overlay
+ * click-through again, so the button asks rather than doing it.
+ */
+bool ConsumeMenuHideRequest();
+
+/// Opens the menu on a given tab.
+void SelectMenuTab(MenuTab tab);
 
 /**
  * @brief Initializes ImGui with Win32 and DirectX11 backends.

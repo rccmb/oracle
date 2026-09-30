@@ -36,8 +36,8 @@
 - **Real Notation** - Moves are written the way players write them, `Nf3` rather than `g1f3`.
 - **Piece Recognition** - Identifies pieces using chamfer distance matching against reference images generated during calibration.
 - **Any UCI Engine** - Oracle speaks plain UCI over a pipe; Stockfish is only what is bundled. Point it at your own with `--engine` or from the menu.
-- **Transparent Overlay** - Renders a DirectX 11 overlay on top of your screen, drawing the detected board rectangle and configuration guides without blocking your view.
-- **ImGui Control Panel** - A fully interactive menu for calibration, analysis tuning, Stockfish settings, and a live board preview with color-coded move suggestions.
+- **Transparent Overlay** - Renders a DirectX 11 overlay on top of your screen, click-through, and invisible to screen capture so Oracle never reads its own drawing.
+- **Control Panel** - One dark panel with three tabs: Play (the evaluation, whose move it is, the board as Oracle sees it, the ranked moves), Engine (which engine, depth, lines, strength) and Calibrate.
 - **Platform-Independent Board Support** - Works with any chess website or desktop application - if you can see the board on your screen, Oracle can detect it.
 
 ## How It Works
@@ -46,7 +46,7 @@ Oracle operates in two phases:
 
 ### 1. Setup
 
-Press **Detect Board**. Oracle searches the screen for the one thing that is a
+Press **Detect board**. Oracle searches the screen for the one thing that is a
 grid of equally sized, axis-aligned squares in two alternating colours, reads the
 square and piece colours from it, works out which way round the board is, sizes
 its sampling geometry from the detected squares, captures reference pieces from
@@ -55,8 +55,9 @@ the starting rows, and starts analysing.
 The board must be at the **starting position**, since that is where the reference
 pieces come from. Nothing else is required.
 
-If a board cannot be read automatically, **Manual calibration** still offers the
-original flow: screenshot, `Ctrl + LMB` on a8 then b8, and the sampling sliders.
+If a board cannot be read automatically, **Calibrate by hand** in the Calibrate
+tab still offers the original flow: screenshot, `Ctrl + LMB` on the top left
+square then the one beside it, and the sampling sliders.
 
 ### 2. Analysis
 
@@ -132,10 +133,12 @@ lines and `bestmove`. Any engine that answers that will work.
 Oracle.exe --engine "C:\engines\myengine.exe"
 ```
 
-or type a path into the Engine box in the menu and press Load. Oracle reports the
-engine's own `id name` once it has answered, so you can see which one is actually
-running. A relative path is resolved against the executable, so an engine dropped
-beside `Oracle.exe` can be named on its own.
+or, in the menu's **Engine** tab, type a path or pick the file with the folder
+button, and press Load. The engine starts in the background, so the overlay keeps
+running while it does, and the position on the board is searched again as soon as
+it answers. Oracle reports the engine's own `id name` once it has answered, so you
+can see which one is actually running. A relative path is resolved against the
+executable, so an engine dropped beside `Oracle.exe` can be named on its own.
 
 `MultiPV` is worth having, since it is what fills the ranked suggestions, but an
 engine without it still works and shows one move. `UCI_LimitStrength` and
@@ -152,7 +155,7 @@ launching the overlay.
 
 | Hotkey | Action |
 |---|---|
-| `Ctrl + F1` | Toggle the overlay menu on/off |
+| `Ctrl + F1` | Toggle the menu on/off (the menu's own hide button does the same) |
 | `Numpad + / Numpad -` | Alternative toggle for the overlay menu |
 | `Ctrl + LMB` | Set board corner clicks (manual calibration only) |
 
@@ -160,14 +163,19 @@ launching the overlay.
 
 1. **Launch Oracle** - The overlay starts hidden.
 2. **Open a board** at the starting position, on any site or desktop app.
-3. **Open the menu** - Press `Ctrl + F1`.
-4. **Detect** - Click "Detect Board". Analysis begins as soon as it succeeds.
-5. **View results** - The "Real-Time Analysis" window shows the live board and Stockfish's best moves.
-6. **Adjust engine** - Depth and number of moves sit in the same window. The engine
-   runs at full strength unless "Limit engine strength" is ticked.
+3. **Open the menu** - Press `Ctrl + F1`. The Play tab shows the engine first;
+   change it there before detecting if you want your own.
+4. **Detect** - Click **Detect board**. Analysis begins as soon as it succeeds, and
+   Oracle suggests moves for the side at the bottom of the board.
+5. **Play** - Suggestions and callouts appear on the board itself. The Play tab
+   adds the evaluation, the board as Oracle reads it, and the ranked moves in
+   notation.
+6. **Adjust engine** - Depth, the number of moves shown and strength are in the
+   Engine tab, and take effect on the position already on the board. The engine
+   runs at full strength unless "Limit strength" is on.
 
-If detection fails, open **Manual calibration** for the original corner-click
-flow, and **Advanced: sampling geometry** for the sliders.
+If detection fails, open **Calibrate by hand** in the Calibrate tab for the
+original corner-click flow, and **Sampling geometry** for the sliders.
 
 ## Project Structure
 
@@ -194,8 +202,10 @@ oracle/
 │   │   ├── Direct3D.cpp/h         #   D3D11 device, swap chain, render target
 │   │   └── FileHandler.cpp/h      #   Reference piece image I/O
 │   └── ui/
-│       ├── Menu.cpp/h             # ImGui: setup, settings, preview, evaluation
-│       └── BoardOverlay.cpp/h     # Badges, arrows and callouts drawn over the board
+│       ├── Menu.cpp/h             # The panel: Play, Engine and Calibrate tabs
+│       ├── BoardOverlay.cpp/h     # Badges, arrows and callouts drawn over the board
+│       ├── Theme.cpp/h            # Palette, fonts and style, shared by both
+│       └── Widgets.cpp/h          # Buttons, toggles, sliders, tabs, cards
 ├── third_party/
 │   ├── imgui/                     # Vendored Dear ImGui (do not modify)
 │   └── stockfish/                 # Bundled Stockfish (do not modify)

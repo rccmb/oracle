@@ -29,9 +29,11 @@
 #include "imgui_impl_dx11.h"
 
 #include "Structs.h"
+#include "chess/ChessRules.h"
 #include "engine/StockfishHandler.h"
 #include "ui/BoardOverlay.h"
 #include "ui/Menu.h"
+#include "ui/Theme.h"
 
 #pragma comment(lib, "d3d11")
 
@@ -286,6 +288,10 @@ struct Scene {
     std::string name;
     std::string backdrop = "chesscom";   // chesscom, lichess, or screenshot
     bool menu = true;
+    MenuTab tab = MenuTab::Play;
+    bool glyphs = false;                 // Draw the icon sheet instead of a game.
+    ImVec2 mouse = ImVec2(-FLT_MAX, -FLT_MAX); // Where the pointer rests, for hover states.
+    ImVec2 click = ImVec2(-FLT_MAX, -FLT_MAX); // Clicked once, early on, to open something.
     bool boardDetected = true;
 
     std::string fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -293,7 +299,9 @@ struct Scene {
     bool playWhite = true;
     int ply = 0;
     std::string lastMove;
+    std::string lastMoveSan;             // As the tracker would have recorded it.
     bool inSync = true;
+    bool searching = false;              // The engine has not answered for this position yet.
     bool noLegalMoves = false;
 
     std::vector<StockfishMove> moves;    // Best first, scores for the side to move.
@@ -306,6 +314,8 @@ struct Scene {
 
     std::string verdict;                 // Blunder, Mistake or Inaccuracy.
     std::string verdictMove;
+    std::string verdictMoveSan;
+    std::string verdictBestSan;          // What the engine wanted instead.
     int verdictLoss = 0;
     bool verdictByUs = false;
 };
@@ -335,6 +345,7 @@ std::vector<Scene> BuildScenes() {
     game.playWhite = false;
     game.ply = 5;
     game.lastMove = "f1c4";
+    game.lastMoveSan = "Bc4";
     game.moves = { Suggest("g8f6", 62, 1), Suggest("f8c5", 18, 2), Suggest("f8e7", -64, 3) };
     game.evalCpWhite = -62;
     game.depth = 22;
@@ -349,18 +360,26 @@ std::vector<Scene> BuildScenes() {
     Scene verdict;
     verdict.name = "verdict";
     verdict.backdrop = "lichess";
-    verdict.menu = false;
     verdict.fen = "rn1qkbnr/ppp2p1p/3p2p1/4p3/2B1P1b1/2N2N2/PPPP1PPP/R1BQK2R w KQkq - 0 5";
     verdict.ply = 8;
     verdict.lastMove = "g7g6";
+    verdict.lastMoveSan = "g6";
     verdict.moves = { Suggest("f3e5", 324, 1), Suggest("h2h3", 96, 2), Suggest("d2d4", 71, 3) };
     verdict.evalCpWhite = 324;
     verdict.depth = 24;
     verdict.verdict = "Blunder";
     verdict.verdictMove = "g7g6";
+    verdict.verdictMoveSan = "g6";
+    verdict.verdictBestSan = "Nf6";
     verdict.verdictLoss = 318;
     verdict.verdictByUs = false;
     scenes.push_back(verdict);
+
+    Scene thinking = game;
+    thinking.name = "thinking";
+    thinking.searching = true;
+    thinking.depth = 14;
+    scenes.push_back(thinking);
 
     Scene lost = game;
     lost.name = "lost";
@@ -373,6 +392,7 @@ std::vector<Scene> BuildScenes() {
     mate.fen = "rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3";
     mate.ply = 4;
     mate.lastMove = "d8h4";
+    mate.lastMoveSan = "Qh4#";
     mate.noLegalMoves = true;
     mate.evalIsMate = true;
     mate.mateInWhite = 0;
@@ -387,6 +407,49 @@ std::vector<Scene> BuildScenes() {
     screenshot.evalCpWhite = 38;
     scenes.push_back(screenshot);
 
+    // The pointer resting on the main button, for its hover state.
+    Scene hover = setup;
+    hover.name = "hover";
+    hover.mouse = ImVec2(1330, 364);
+    scenes.push_back(hover);
+
+    // Manual calibration opened, before any board is found.
+    Scene manual = setup;
+    manual.name = "manual";
+    manual.tab = MenuTab::Calibrate;
+    manual.click = ImVec2(1300, 625);
+    scenes.push_back(manual);
+
+    Scene engineTab = game;
+    engineTab.name = "engine";
+    engineTab.tab = MenuTab::Engine;
+    scenes.push_back(engineTab);
+
+    Scene calibrateTab = game;
+    calibrateTab.name = "calibrate";
+    calibrateTab.tab = MenuTab::Calibrate;
+    scenes.push_back(calibrateTab);
+
+    // Their move: the list shows their options, neutral, and nothing is drawn
+    // on the board.
+    Scene theirs = game;
+    theirs.name = "theirs";
+    theirs.fen = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3";
+    theirs.ply = 4;
+    theirs.lastMove = "b8c6";
+    theirs.lastMoveSan = "Nc6";
+    theirs.moves = { Suggest("f1b5", 34, 1), Suggest("f1c4", 29, 2), Suggest("d2d4", 26, 3) };
+    theirs.evalCpWhite = 34;
+    scenes.push_back(theirs);
+
+    // Every icon the interface uses, to check each one exists in the font.
+    Scene glyphs;
+    glyphs.name = "glyphs";
+    glyphs.menu = false;
+    glyphs.boardDetected = false;
+    glyphs.glyphs = true;
+    scenes.push_back(glyphs);
+
     return scenes;
 }
 
@@ -397,6 +460,7 @@ void ApplyScene(const Scene& scene) {
     g_showMoveArrows = true;
     g_sfPlayWhite = scene.playWhite;
     g_sfNoLegalMoves = scene.noLegalMoves;
+    SelectMenuTab(scene.tab);
 
     if (!scene.boardDetected) {
         g_boardRect = { 0, 0, 0, 0 };
@@ -450,6 +514,12 @@ void ApplyScene(const Scene& scene) {
     }
 
     const bool whiteToMove = scene.fen.find(" w ") != std::string::npos;
+
+    // In SAN, as the analysis thread writes them.
+    std::vector<StockfishMove> moves = scene.moves;
+    if (const std::optional<ChessPosition> position = ChessPosition::FromFen(scene.fen)) {
+        for (StockfishMove& move : moves) move.san = UciToSan(*position, move.uci);
+    }
     {
         std::lock_guard<std::mutex> lock(g_analysisStateMutex);
         g_boardGridRows = scene.boardDetected ? rows : std::vector<std::string>(8, std::string(8, ' '));
@@ -460,9 +530,13 @@ void ApplyScene(const Scene& scene) {
         g_sfMovesAreOurs = whiteToMove == scene.playWhite;
         g_sideToMove = whiteToMove ? 'w' : 'b';
         g_lastMoveUci = scene.lastMove;
-        g_sfBestMoves = scene.moves;
+        g_lastMoveSan = scene.lastMoveSan;
+        g_sfBestMoves = moves;
+        g_sfBestMovesFen = scene.boardDetected && !scene.searching ? scene.fen : std::string();
         g_lastMoveVerdict = scene.verdict;
         g_lastMoveVerdictUci = scene.verdictMove;
+        g_lastMoveVerdictSan = scene.verdictMoveSan;
+        g_lastMoveVerdictBestSan = scene.verdictBestSan;
         g_lastMoveLossCp = scene.verdictLoss;
         g_lastMoveVerdictByUs = scene.verdictByUs;
     }
@@ -481,6 +555,7 @@ cv::Rect WindowBounds() {
     for (ImGuiWindow* window : GImGui->Windows) {
         if (!window->Active || window->Hidden) continue;
         if (window->Flags & ImGuiWindowFlags_ChildWindow) continue;
+        if (std::strncmp(window->Name, "Debug##", 7) == 0) continue;
         const ImRect rect = window->Rect();
         if (!any) bounds = rect;
         else bounds.Add(rect);
@@ -494,6 +569,33 @@ void WriteCrop(const cv::Mat& image, cv::Rect region, const std::filesystem::pat
     region &= cv::Rect(0, 0, image.cols, image.rows);
     if (region.width <= 0 || region.height <= 0) return;
     cv::imwrite(path.string(), image(region));
+}
+
+// Each icon the interface names, with its code point, over the panel colour.
+void DrawGlyphSheet() {
+    struct Glyph { const char* name; const char* text; };
+    const Glyph glyphs[] = {
+        { "CLOSE", ICON_CLOSE }, { "MINIMIZE", ICON_MINIMIZE }, { "SEARCH", ICON_SEARCH },
+        { "REFRESH", ICON_REFRESH }, { "CHECK", ICON_CHECK }, { "DONE", ICON_DONE },
+        { "PENDING", ICON_PENDING }, { "ERROR", ICON_ERROR }, { "WARNING", ICON_WARNING },
+        { "INFO", ICON_INFO }, { "FOLDER", ICON_FOLDER }, { "CHEVRON_DOWN", ICON_CHEVRON_DOWN },
+        { "CHEVRON_RIGHT", ICON_CHEVRON_RIGHT }, { "FLAG", ICON_FLAG }, { "POWER", ICON_POWER },
+        { "PLAY", ICON_PLAY }, { "SETTINGS", ICON_SETTINGS }, { "BOLT", ICON_BOLT }, { "EYE", ICON_EYE },
+    };
+
+    ImDrawList* list = ImGui::GetForegroundDrawList();
+    list->AddRectFilled(ImVec2(0, 0), ImVec2((float)kWidth, (float)kHeight), theme::kBg);
+    const theme::Fonts& fonts = theme::GetFonts();
+    for (int i = 0; i < (int)(sizeof(glyphs) / sizeof(glyphs[0])); ++i) {
+        const float x = 60.0f + (i % 4) * 300.0f;
+        const float y = 60.0f + (i / 4) * 90.0f;
+        list->AddText(fonts.body, 32.0f, ImVec2(x, y), theme::kText, glyphs[i].text);
+        std::string label = std::string(glyphs[i].name) + "  Aa";
+        list->AddText(fonts.body, 14.0f, ImVec2(x + 50.0f, y + 4.0f), theme::kTextDim, label.c_str());
+        // The icon inline with text, to check it sits on the baseline.
+        std::string inline_ = std::string(glyphs[i].text) + "  Label";
+        list->AddText(fonts.strong, 14.0f, ImVec2(x + 50.0f, y + 26.0f), theme::kText, inline_.c_str());
+    }
 }
 
 } // namespace
@@ -549,13 +651,21 @@ int main(int argc, char** argv) {
         // Long enough for anything easing towards a value to arrive at it.
         cv::Rect menuBounds;
         for (int i = 0; i < 60; ++i) {
+            ImGuiIO& input = ImGui::GetIO();
+            if (scene.click.x > -FLT_MAX && (i == 4 || i == 5)) {
+                input.AddMousePosEvent(scene.click.x, scene.click.y);
+                input.AddMouseButtonEvent(0, i == 4);
+            }
+            else {
+                input.AddMousePosEvent(scene.mouse.x, scene.mouse.y);
+            }
             Frame(1.0f / 30.0f, [&] {
                 // Beside the board rather than over it, where a player would
                 // put the menu. Naming a window that does not exist is harmless.
-                ImGui::SetWindowPos("oracle.pro", ImVec2(1470, 90), ImGuiCond_Always);
-                ImGui::SetWindowPos("Real-Time Analysis", ImVec2(1010, 90), ImGuiCond_Always);
+                ImGui::SetWindowPos("oracle", ImVec2(1186, 104), ImGuiCond_Always);
                 DrawBoardOverlay(ImGui::GetBackgroundDrawList());
                 if (scene.menu) ShowMenu(kWidth, kHeight);
+                if (scene.glyphs) DrawGlyphSheet();
                 menuBounds = WindowBounds();
             });
         }

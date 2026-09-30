@@ -141,6 +141,11 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
             ToggleMenu(hwndOverlay);
         }
 
+        // The menu's own hide button.
+        if (IMGUI_MENU_VISIBLE && ConsumeMenuHideRequest()) {
+            ToggleMenu(hwndOverlay);
+        }
+
         // Capture board clicks using hotkey. ONLY USED IN CONFIGURATION.
         if (!g_boardClicksReady && IMGUI_MENU_VISIBLE && g_userScreenshotReady) {
             CaptureBoardClicks();

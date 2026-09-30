@@ -90,7 +90,10 @@ oracle/
 │   │   ├── Direct3D.cpp/h         #   D3D11 device, swap chain, render target
 │   │   └── FileHandler.cpp/h      #   Reference piece image I/O
 │   └── ui/
-│       └── Menu.cpp/h             # ImGui: setup, settings, preview, evaluation
+│       ├── Menu.cpp/h             # The panel: Play, Engine and Calibrate tabs
+│       ├── BoardOverlay.cpp/h     # Badges, arrows and callouts drawn over the board
+│       ├── Theme.cpp/h            # Palette, fonts and style, shared by both
+│       └── Widgets.cpp/h          # Buttons, toggles, sliders, tabs, cards
 ├── third_party/
 │   ├── imgui/                     # Vendored Dear ImGui (do not modify)
 │   └── stockfish/                 # Bundled Stockfish (do not modify)

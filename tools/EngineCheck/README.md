@@ -41,8 +41,9 @@ Either pass it on the command line:
 Oracle.exe --engine "C:\engines\myengine.exe"
 ```
 
-or type the path into the Engine box in the menu and press Load. Oracle reports
-the engine's own name once it has answered, so you can see which one is running.
+or, in the menu's Engine tab, type the path or pick the file with the folder
+button and press Load. Oracle reports the engine's own name once it has answered,
+so you can see which one is running.
 
 A relative path is resolved against the executable rather than the working
 directory, so dropping an engine beside `Oracle.exe` and passing just its name
