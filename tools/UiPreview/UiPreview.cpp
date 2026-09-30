@@ -469,6 +469,7 @@ void ApplyScene(const Scene& scene) {
         g_samplePointsSet = false;
         g_cropRegionSet = false;
         g_boardClicksReady = false;
+        g_userScreenshotReady = false;
     }
     else {
         g_boardRect = { kBoardLeft, kBoardTop, kBoardLeft + kCell * 8, kBoardTop + kCell * 8 };
@@ -477,6 +478,7 @@ void ApplyScene(const Scene& scene) {
         g_samplePointsSet = true;
         g_cropRegionSet = true;
         g_boardClicksReady = true;
+        g_userScreenshotReady = true;
         g_clickStage = 2;
     }
     g_orientation = scene.orientation;

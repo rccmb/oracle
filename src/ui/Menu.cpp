@@ -1231,7 +1231,12 @@ void DrawCalibrateTab() {
             }
         }
 
-        if (g_boardClicksReady) {
+        // After the clicks there is still sampling to do by hand, so say what
+        // comes next rather than calling the board done.
+        if (g_boardClicksReady && !(g_samplePointsSet && g_cropRegionSet)) {
+            ui::Caption("Board found. Next, set the sample points and the crop region under Sampling geometry.");
+        }
+        else if (g_boardClicksReady) {
             ui::Caption("The board is set. Rescan to start again.");
         }
         ImGui::Dummy(ImVec2(0.0f, Px(4.0f)));
