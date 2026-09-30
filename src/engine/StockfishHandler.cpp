@@ -2,7 +2,9 @@
 
 #include "platform/Utils.h"
 
+#include <atomic>
 #include <map>
+#include <thread>
 
 HANDLE g_sfInput = nullptr;
 HANDLE g_sfOutput = nullptr;
@@ -29,6 +31,14 @@ std::string g_sfEngineRequested;
 std::string g_sfEngineResolved;
 std::string g_sfEngineName;
 std::string g_sfEngineError;
+
+// Guards the four strings above. They are written by whichever thread launches
+// the engine, a loader thread or the detection thread restarting one that has
+// crashed, and read every frame by the menu.
+static std::mutex g_sfStatusMutex;
+
+// True while LaunchStockfishAsync is starting an engine in the background.
+static std::atomic<bool> g_sfLoading{ false };
 
 // Used when nothing else was asked for.
 static const char* kBundledEngine = "third_party/stockfish/stockfish.exe";
@@ -187,13 +197,16 @@ static bool CompleteHandshake() {
         if (!ReadAvailable(response)) { Sleep(10); continue; }
         if (response.find("uciok") == std::string::npos) continue;
 
+        std::string name;
         std::istringstream lines(response);
         std::string line;
         while (std::getline(lines, line)) {
             if (!line.empty() && line.back() == '\r') line.pop_back();
-            if (line.rfind("id name ", 0) == 0) g_sfEngineName = line.substr(8);
+            if (line.rfind("id name ", 0) == 0) name = line.substr(8);
         }
-        if (g_sfEngineName.empty()) g_sfEngineName = "unnamed engine";
+
+        std::lock_guard<std::mutex> status(g_sfStatusMutex);
+        g_sfEngineName = name.empty() ? "unnamed engine" : name;
         return true;
     }
 
@@ -210,21 +223,32 @@ static void ReleaseStockfishHandles() {
     g_sfRunning = false;
 }
 
+// Records why a launch failed, for the menu to show.
+static void ReportEngineError(const std::string& error) {
+    {
+        std::lock_guard<std::mutex> status(g_sfStatusMutex);
+        g_sfEngineError = error;
+    }
+    std::cerr << "[ERROR] " << error << "\n";
+}
+
 void LaunchStockfish(const std::string& path) {
     ReleaseStockfishHandles();
 
-    g_sfEngineRequested = path;
-    g_sfEngineName.clear();
-    g_sfEngineError.clear();
-
     const std::filesystem::path resolved = ResolveEnginePath(path);
-    g_sfEngineResolved = resolved.u8string();
+    const std::string resolvedText = resolved.u8string();
+    {
+        std::lock_guard<std::mutex> status(g_sfStatusMutex);
+        g_sfEngineRequested = path;
+        g_sfEngineName.clear();
+        g_sfEngineError.clear();
+        g_sfEngineResolved = resolvedText;
+    }
 
     std::error_code ec;
     if (resolved.empty() || !std::filesystem::exists(resolved, ec)) {
-        g_sfEngineError = "No engine at " +
-            (g_sfEngineResolved.empty() ? std::string("(nothing given)") : g_sfEngineResolved);
-        std::cerr << "[ERROR] " << g_sfEngineError << "\n";
+        ReportEngineError("No engine at " +
+            (resolvedText.empty() ? std::string("(nothing given)") : resolvedText));
         return;
     }
 
@@ -249,8 +273,7 @@ void LaunchStockfish(const std::string& path) {
     const std::wstring executable = resolved.wstring();
     if (!CreateProcessW(executable.c_str(), nullptr, nullptr, nullptr, TRUE,
         CREATE_NO_WINDOW, nullptr, nullptr, &si, &g_sfProcInfo)) {
-        g_sfEngineError = "Could not start " + g_sfEngineResolved;
-        std::cerr << "[ERROR] " << g_sfEngineError << "\n";
+        ReportEngineError("Could not start " + resolvedText);
         CloseHandle(hStdOutRead);
         CloseHandle(hStdOutWrite);
         CloseHandle(hStdInRead);
@@ -268,8 +291,7 @@ void LaunchStockfish(const std::string& path) {
     // A binary that starts but never answers "uci" is not an engine, and saying
     // so here is far kinder than every later search quietly timing out.
     if (!CompleteHandshake()) {
-        g_sfEngineError = g_sfEngineResolved + " did not answer the UCI handshake";
-        std::cerr << "[ERROR] " << g_sfEngineError << "\n";
+        ReportEngineError(resolvedText + " did not answer the UCI handshake");
 
         // Ask, then insist. Something that ignored "uci" has no reason to
         // understand "quit" either, and leaving it running would leak a process
@@ -284,19 +306,21 @@ void LaunchStockfish(const std::string& path) {
         return;
     }
 
-    std::cerr << "[INFO] Engine: " << g_sfEngineName << " (" << g_sfEngineResolved << ")\n";
+    std::cerr << "[INFO] Engine: " << GetEngineStatus().name << " (" << resolvedText << ")\n";
 }
 
-bool StockfishIsAlive() {
-    // Both the render loop and the detection loop ask this every pass, which was
-    // an isready and a blocking read of up to half a second each time, on the
-    // same pipe and mutex the search uses. The engine's liveness does not change
-    // at that rate, so the answer is cached between probes.
-    static DWORD lastProbeTick = 0;
-    static DWORD lastRestartTick = 0;
-    static bool lastResult = false;
+// The detection loop asks every pass, which was an isready and a blocking read
+// of up to half a second each time, on the same pipe and mutex the search uses.
+// The engine's liveness does not change at that rate, so the answer is cached
+// between probes. Shared by both entry points below; g_sfMutex must be held.
+static DWORD g_sfLastProbeTick = 0;
+static DWORD g_sfLastRestartTick = 0;
+static bool g_sfLastAlive = false;
 
-    std::lock_guard<std::mutex> lock(g_sfMutex);
+static bool ProbeEngineLocked(bool allowRestart) {
+    DWORD& lastProbeTick = g_sfLastProbeTick;
+    DWORD& lastRestartTick = g_sfLastRestartTick;
+    bool& lastResult = g_sfLastAlive;
 
     const DWORD now = GetTickCount();
     if (lastProbeTick != 0 && (now - lastProbeTick) < kLivenessProbeIntervalMs) {
@@ -316,13 +340,14 @@ bool StockfishIsAlive() {
 
     if (!g_sfRunning) {
         lastResult = false;
+        if (!allowRestart) return false;
         if (lastRestartTick != 0 && (now - lastRestartTick) < kRestartBackoffMs) {
             return false;
         }
         lastRestartTick = now;
 
         // LaunchStockfish does not take the mutex, so calling it here is safe.
-        LaunchStockfish(g_sfEngineRequested);
+        LaunchStockfish(GetEngineStatus().requested);
         g_sfPreviousMoves.clear();
         if (!g_sfRunning) return false;
     }
@@ -342,6 +367,55 @@ bool StockfishIsAlive() {
     }
 
     return false;
+}
+
+bool StockfishIsAlive() {
+    std::lock_guard<std::mutex> lock(g_sfMutex);
+    return ProbeEngineLocked(true);
+}
+
+bool StockfishLooksAlive() {
+    // Held means a search or a launch is under way. Waiting for it is what
+    // froze the menu: a search holds the engine for as long as it runs, which
+    // at any real depth is seconds, and the menu asked every frame. A search
+    // only runs on a live engine, so what is already known is the answer.
+    std::unique_lock<std::mutex> lock(g_sfMutex, std::try_to_lock);
+    if (!lock.owns_lock()) return g_sfRunning && !g_sfLoading.load();
+    return ProbeEngineLocked(false);
+}
+
+void LaunchStockfishAsync(const std::string& path) {
+    if (g_sfLoading.exchange(true)) return;
+
+    std::thread([path] {
+        {
+            // Behind any search in progress, rather than pulling its pipes
+            // out from under it.
+            std::lock_guard<std::mutex> lock(g_sfMutex);
+            LaunchStockfish(path);
+            g_sfPreviousMoves.clear();
+            g_sfLastAlive = g_sfRunning;
+            g_sfLastProbeTick = GetTickCount();
+        }
+        g_sfLoading = false;
+    }).detach();
+}
+
+bool StockfishIsLoading() {
+    return g_sfLoading.load();
+}
+
+EngineStatus GetEngineStatus() {
+    EngineStatus status;
+    {
+        std::lock_guard<std::mutex> lock(g_sfStatusMutex);
+        status.requested = g_sfEngineRequested;
+        status.resolved = g_sfEngineResolved;
+        status.name = g_sfEngineName;
+        status.error = g_sfEngineError;
+    }
+    status.loading = g_sfLoading.load();
+    return status;
 }
 
 std::vector<StockfishMove> GetBestMoves(const std::string& fen, int elo, int topN = 5, int depth = 15) {

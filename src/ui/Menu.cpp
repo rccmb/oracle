@@ -30,7 +30,10 @@ void ShowMenu(int imageWidth, int imageHeight) {
     // only drawn once a board exists, so a custom engine could not be chosen
     // before the one thing that needed it had already happened.
     {
-        const bool engineAlive = StockfishIsAlive();
+        // Never StockfishIsAlive here: it waits for any search in progress, and
+        // this runs on the thread that presents every frame.
+        const bool engineAlive = StockfishLooksAlive();
+        const EngineStatus engine = GetEngineStatus();
 
         // The engine's own name rather than "Stockfish": whatever answered the
         // UCI handshake is what is running, and saying which is the only way to
@@ -39,24 +42,27 @@ void ShowMenu(int imageWidth, int imageHeight) {
         ImGui::SameLine();
         if (engineAlive) {
             ImGui::TextColored(ImVec4(0, 1, 0, 1), "%s",
-                g_sfEngineName.empty() ? "running" : g_sfEngineName.c_str());
+                engine.name.empty() ? "running" : engine.name.c_str());
+        }
+        else if (engine.loading) {
+            ImGui::TextDisabled("starting");
         }
         else {
             ImGui::TextColored(ImVec4(1, 0, 0, 1), "not running");
         }
 
-        if (!g_sfEngineResolved.empty()) {
-            ImGui::TextDisabled("%s", g_sfEngineResolved.c_str());
+        if (!engine.resolved.empty()) {
+            ImGui::TextDisabled("%s", engine.resolved.c_str());
         }
-        if (!g_sfEngineError.empty()) {
-            ImGui::TextColored(ImVec4(1, 0.4f, 0.35f, 1), "%s", g_sfEngineError.c_str());
+        if (!engine.error.empty()) {
+            ImGui::TextColored(ImVec4(1, 0.4f, 0.35f, 1), "%s", engine.error.c_str());
         }
 
         // Any UCI engine will do. Empty means the bundled Stockfish.
         static char enginePath[512] = "";
         static bool enginePathLoaded = false;
         if (!enginePathLoaded) {
-            std::snprintf(enginePath, sizeof(enginePath), "%s", g_sfEngineRequested.c_str());
+            std::snprintf(enginePath, sizeof(enginePath), "%s", engine.requested.c_str());
             enginePathLoaded = true;
         }
 
@@ -65,7 +71,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
                                  enginePath, sizeof(enginePath));
         ImGui::SameLine();
         if (ImGui::Button("Load")) {
-            LaunchStockfish(enginePath);
+            LaunchStockfishAsync(enginePath);
 
             std::lock_guard<std::mutex> reset(g_analysisStateMutex);
             g_sfBestMoves.clear();
@@ -496,7 +502,7 @@ void ShowMenu(int imageWidth, int imageHeight) {
             /* ENGINE TUNING. */
             // Choosing the engine itself lives in the setup window, since it has
             // to happen before a board is detected rather than after.
-            const bool stockfishAlive = StockfishIsAlive();
+            const bool stockfishAlive = StockfishLooksAlive();
 
             ImGui::Checkbox("Limit engine strength", &g_sfLimitStrength);
             ImGui::BeginDisabled(!g_sfLimitStrength);

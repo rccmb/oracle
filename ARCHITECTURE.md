@@ -344,7 +344,10 @@ Manages the Stockfish process lifecycle and UCI communication:
 | Function | Purpose |
 |---|---|
 | `LaunchStockfish()` | Spawns Stockfish as a child process with redirected stdin/stdout via Win32 pipes |
-| `StockfishIsAlive()` | Sends `isready` and waits up to 500ms for `readyok` |
+| `StockfishIsAlive()` | Sends `isready` and waits up to 500ms for `readyok`, restarting an engine that has died |
+| `LaunchStockfishAsync()` | `LaunchStockfish()` on a background thread, queued behind any search in progress |
+| `StockfishLooksAlive()` | Liveness without waiting: while a search holds the engine, the last known answer |
+| `GetEngineStatus()` | A consistent copy of the engine's path, name and last error, safe from any thread |
 | `GetBestMoves()` | Sets UCI options (ELO, MultiPV), sends `position fen ...`, runs `go depth N`, and parses `info` lines |
 | `ShutdownStockfish()` | Sends `quit` and cleans up process handles |
 
@@ -401,7 +404,7 @@ Oracle                          Stockfish
 **Synchronization:**
 - `g_analysisStateMutex` - Guards the state the detection thread produces and the render thread consumes: `g_boardGridRows`, `g_detectedLetters`, `g_sfBestMoves` and `g_lastValidFEN`. These are vectors and strings the producer reallocates, so it is held on both sides, only long enough to copy in or out.
 - `g_boardChangedMutex` - Guards `g_boardChanged`.
-- `g_sfMutex` - Serializes all Stockfish I/O.
+- `g_sfMutex` - Serializes all Stockfish I/O. A search holds it for as long as it runs, which at any real depth is seconds, so nothing on the render thread may wait for it: the menu asks `StockfishLooksAlive()`, loads engines with `LaunchStockfishAsync()`, and reads names and errors through `GetEngineStatus()`.
 - The remaining globals are configuration written by the render thread and read by the detection thread. A torn read of an `int` slider costs one frame of analysis, so these are left unguarded deliberately; anything with an allocation behind it belongs under `g_analysisStateMutex`.
 
 ---
