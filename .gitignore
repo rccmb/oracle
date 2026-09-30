@@ -1087,3 +1087,11 @@ tools/EngineCheck/*.obj
 tools/EngineCheck/*.dll
 tools/EngineCheck/*.pdb
 tools/EngineCheck/*.ilk
+
+# Oracle: interface preview build output and renders
+tools/UiPreview/*.exe
+tools/UiPreview/*.dll
+tools/UiPreview/*.pdb
+tools/UiPreview/*.ilk
+tools/UiPreview/obj/
+tools/UiPreview/out/

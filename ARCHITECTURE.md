@@ -119,7 +119,8 @@ opaque brown. Overlay colours are chosen as the opaque colours they will be, and
 pure black is never drawn on purpose, since it would punch a hole.
 
 The window is also excluded from screen capture, so Oracle never reads its own
-drawing back as part of the board.
+drawing back as part of the board, and a screenshot never shows it either.
+`tools/UiPreview` renders what it draws offscreen, composited the same way.
 
 ---
 
@@ -147,7 +148,7 @@ numbered badges and arrow. `DrawBoardOverlay()` takes the draw list to use and
 reads the shared analysis state, copying it under `g_analysisStateMutex` first.
 
 It is a function of its own, rather than part of the render loop, so it can be
-drawn somewhere other than the live overlay.
+drawn somewhere other than the live overlay: `tools/UiPreview` draws it offscreen.
 
 ---
 

@@ -203,6 +203,7 @@ oracle/
 │   ├── PerftCheck/                # Move generator, against the perft suite
 │   ├── TrackerCheck/              # Game tracking across frames
 │   ├── FenCheck/                  # Castling rights and position validation
+│   ├── UiPreview/                 # The menu and overlay, rendered offscreen
 │   └── BoardDetectionCheck/       # Offline check for the board detector
 └── OpenCV/                        # OpenCV installation (not tracked in git)
 ```

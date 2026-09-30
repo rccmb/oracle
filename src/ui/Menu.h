@@ -39,6 +39,15 @@ void ShowMenu(int imageWidth, int imageHeight);
 void InitializeImGui(HWND hwndOverlay, ID3D11Device* device, ID3D11DeviceContext* deviceContext);
 
 /**
+ * @brief Applies Oracle's style and loads its fonts into the current context.
+ *
+ * Separate from InitializeImGui so something other than the overlay, such as
+ * the offscreen preview in tools/UiPreview, can dress a context of its own the
+ * same way without creating a window.
+ */
+void SetupImGuiStyleAndFonts();
+
+/**
  * @brief Cleans up ImGui resources and shuts down backends.
  * 
  * @param None.

@@ -778,9 +778,13 @@ void ShowMenu(int imageWidth, int imageHeight) {
 void InitializeImGui(HWND hwndOverlay, ID3D11Device* device, ID3D11DeviceContext* deviceContext) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
     ImGui_ImplWin32_Init(hwndOverlay);
     ImGui_ImplDX11_Init(device, deviceContext);
+    SetupImGuiStyleAndFonts();
+}
+
+void SetupImGuiStyleAndFonts() {
+    ImGuiIO& io = ImGui::GetIO();
     ImGui::StyleColorsDark();
 
     DEFAULT_FONT = io.Fonts->AddFontDefault();
