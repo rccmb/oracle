@@ -103,7 +103,7 @@ TrackerOutcome GameTracker::Observe(const char observed[64]) {
     const bool decisive = (bestMismatch == 0) || (bestMismatch < secondMismatch);
 
     if (bestMove && bestMismatch <= kSquareTolerance && bestMismatch < stayMismatch && decisive) {
-        m_history.push_back({ *bestMove, bestMove->ToUci(), m_position.SideToMove() });
+        m_history.push_back({ *bestMove, bestMove->ToUci(), m_position.SideToMove(), ToSan(m_position, *bestMove) });
         m_position = bestPosition;
         m_positionHistory.push_back(bestPosition);
         m_lastApplied = 1;
@@ -120,8 +120,8 @@ TrackerOutcome GameTracker::Observe(const char observed[64]) {
             const ChessPosition afterSecond = afterFirst.AfterMove(second);
             if (!afterSecond.SameBoard(observed)) continue;
 
-            m_history.push_back({ first, first.ToUci(), m_position.SideToMove() });
-            m_history.push_back({ second, second.ToUci(), afterFirst.SideToMove() });
+            m_history.push_back({ first, first.ToUci(), m_position.SideToMove(), ToSan(m_position, first) });
+            m_history.push_back({ second, second.ToUci(), afterFirst.SideToMove(), ToSan(afterFirst, second) });
             m_positionHistory.push_back(afterFirst);
             m_positionHistory.push_back(afterSecond);
             m_position = afterSecond;

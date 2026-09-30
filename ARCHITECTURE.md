@@ -187,6 +187,12 @@ Proven by `tools/PerftCheck` against the published perft suite: six positions,
 thirty-two counts, covering en passant, under-promotion, castling through an
 attacked square, pinned pieces and rights lost to a captured rook.
 
+`ToSan()` writes a move the way players read it, `Nf3` rather than `g1f3`,
+disambiguating by file, then rank, then both, only as far as the position needs,
+and never against a pinned piece that could not legally make the move. Every
+move `GameTracker` applies records its SAN, worked out in the position it was
+played in. `tools/NotationCheck` holds the hand written cases.
+
 ---
 
 #### `GameTracker.h / GameTracker.cpp` - Following the Game

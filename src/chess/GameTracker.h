@@ -32,6 +32,7 @@ struct TrackedMove {
     Move move;
     std::string uci;
     Color playedBy = Color::White;
+    std::string san;   // As a player writes it, worked out in the position it was played in.
 };
 
 class GameTracker {

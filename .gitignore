@@ -1095,3 +1095,9 @@ tools/UiPreview/*.pdb
 tools/UiPreview/*.ilk
 tools/UiPreview/obj/
 tools/UiPreview/out/
+
+# Oracle: notation check build output
+tools/NotationCheck/*.exe
+tools/NotationCheck/*.obj
+tools/NotationCheck/*.pdb
+tools/NotationCheck/*.ilk

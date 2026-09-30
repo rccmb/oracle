@@ -76,7 +76,7 @@ oracle/
 │   ├── Globals.cpp/h              # Shared state, declared once and used everywhere
 │   ├── Structs.h                  # CLICK, SAMPLE, StockfishMove
 │   ├── chess/                     # The rules. Standard library only.
-│   │   ├── ChessRules.cpp/h       #   Positions, legal moves, FEN
+│   │   ├── ChessRules.cpp/h       #   Positions, legal moves, FEN, notation
 │   │   └── GameTracker.cpp/h      #   Follows the game across frames
 │   ├── vision/                    # Reading a board off the screen. OpenCV.
 │   │   ├── BoardDetection.cpp/h   #   Automatic board, colour and orientation search
@@ -97,6 +97,7 @@ oracle/
 ├── tools/
 │   ├── EngineCheck/               # Drives a UCI engine of your choice
 │   ├── PerftCheck/                # Move generator, against the perft suite
+│   ├── NotationCheck/             # Moves written the way players write them
 │   ├── TrackerCheck/              # Game tracking across frames
 │   ├── FenCheck/                  # Castling rights and position validation
 │   ├── UiPreview/                 # The menu and overlay, rendered offscreen

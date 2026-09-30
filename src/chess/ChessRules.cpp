@@ -502,3 +502,75 @@ unsigned long long Perft(const ChessPosition& position, int depth) {
     }
     return nodes;
 }
+
+std::string ToSan(const ChessPosition& position, const Move& move) {
+    const char piece = position.PieceAt(move.from);
+    const char kind = (char)std::toupper((unsigned char)piece);
+
+    std::string san;
+    if (move.isCastle) {
+        san = (move.to > move.from) ? "O-O" : "O-O-O";
+    }
+    else if (kind == 'P') {
+        // A pawn is named by its file, and only when it captures: a push can
+        // only have come from one square.
+        if (move.isCapture) {
+            san += (char)('a' + FileOf(move.from));
+            san += 'x';
+        }
+        san += SquareName(move.to);
+        if (move.promotion) {
+            san += '=';
+            san += (char)std::toupper((unsigned char)move.promotion);
+        }
+    }
+    else {
+        san += kind;
+
+        // Another piece of the same kind that can reach the same square has to
+        // be told apart: by file when that is enough, by rank when the file is
+        // shared, and by both when neither alone is, as with three queens.
+        bool ambiguous = false;
+        bool fileShared = false;
+        bool rankShared = false;
+        for (const Move& other : position.LegalMoves()) {
+            if (other.to != move.to || other.from == move.from) continue;
+            if (position.PieceAt(other.from) != piece) continue;
+            ambiguous = true;
+            if (FileOf(other.from) == FileOf(move.from)) fileShared = true;
+            if (RankIndexOf(other.from) == RankIndexOf(move.from)) rankShared = true;
+        }
+        if (ambiguous) {
+            if (!fileShared) {
+                san += (char)('a' + FileOf(move.from));
+            }
+            else if (!rankShared) {
+                san += (char)('8' - RankIndexOf(move.from));
+            }
+            else {
+                san += SquareName(move.from);
+            }
+        }
+
+        if (move.isCapture) san += 'x';
+        san += SquareName(move.to);
+    }
+
+    const ChessPosition after = position.AfterMove(move);
+    if (after.IsInCheck(after.SideToMove())) {
+        san += after.LegalMoves().empty() ? '#' : '+';
+    }
+    return san;
+}
+
+std::optional<Move> MoveFromUci(const ChessPosition& position, const std::string& uci) {
+    for (const Move& move : position.LegalMoves()) {
+        if (move.ToUci() == uci) return move;
+    }
+    return std::nullopt;
+}
+
+std::string UciToSan(const ChessPosition& position, const std::string& uci) {
+    const std::optional<Move> move = MoveFromUci(position, uci);
+    return move ? ToSan(position, *move) : uci;
+}

@@ -79,6 +79,19 @@ private:
     int m_fullmove = 1;
 };
 
+// Standard algebraic notation for a move that is legal in this position: "Nf3",
+// "exd5", "O-O", "e8=Q+", "Qh4#". A piece is disambiguated by file, then by
+// rank, then by both, only as far as the position actually requires, which is
+// what makes SAN the form players read without having to think about it.
+std::string ToSan(const ChessPosition& position, const Move& move);
+
+// The legal move a UCI string names, if it names one.
+std::optional<Move> MoveFromUci(const ChessPosition& position, const std::string& uci);
+
+// SAN for a UCI string, or the UCI string unchanged when it is not a legal move
+// here, so there is always something to show.
+std::string UciToSan(const ChessPosition& position, const std::string& uci);
+
 // Counts leaf nodes at a fixed depth. The standard way to prove a move generator
 // correct: the numbers are published for well known positions, so a single wrong
 // rule shows up as a mismatch rather than as a subtly wrong game months later.
