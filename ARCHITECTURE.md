@@ -47,6 +47,7 @@ Oracle is a single-process Windows desktop application composed of two concurren
 | Application lifecycle | Creates the overlay window, D3D11 device, and launches Stockfish |
 | Render loop | Calls `RenderFrame()` every ~10ms, which draws `DrawBoardOverlay()` and then the menu |
 | Hotkey handling | Listens for `Ctrl+F1` (or `Numpad+/-`) to toggle the menu |
+| Click-through | Every frame, `UpdateOverlayInput()` lets the overlay take the mouse only where the open menu is, so the board stays playable with the menu open |
 | Calibration input | Forwards `Ctrl+LMB` clicks to `SetBoardClicks()` during configuration |
 | Thread management | Spawns the `ChessboardDetectionThread` once analysis begins |
 
@@ -108,7 +109,7 @@ Creates a fullscreen, transparent, always-on-top, click-through Win32 window. Th
 
 **Window styles:**
 - `WS_EX_TOPMOST` - Always on top of other windows.
-- `WS_EX_TRANSPARENT` - Clicks pass through to underlying windows (toggled when the menu is visible).
+- `WS_EX_TRANSPARENT` - Clicks pass through to underlying windows. Cleared only while the pointer is over the open menu, while the menu is using the mouse (a slider being dragged), or while manual calibration waits for its corner clicks. The colour key below makes black see-through but not click-through, so clearing this for the whole time the menu was open used to leave nothing underneath clickable.
 - `WS_EX_LAYERED` with a colour key of pure black - Black pixels are transparent and every other pixel is opaque.
 
 That last point decides how anything drawn over the board must be coloured.

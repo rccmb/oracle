@@ -37,7 +37,7 @@
 - **Tracking Corners** - Four marks frame the board being followed, and turn amber when the board stops matching the game.
 - **Piece Recognition** - Identifies pieces using chamfer distance matching against reference images generated during calibration.
 - **Any UCI Engine** - Oracle speaks plain UCI over a pipe; Stockfish is only what is bundled. Point it at your own with `--engine` or from the menu.
-- **Transparent Overlay** - Renders a DirectX 11 overlay on top of your screen, click-through, and invisible to screen capture so Oracle never reads its own drawing.
+- **Transparent Overlay** - Renders a DirectX 11 overlay on top of your screen, click-through everywhere but the open menu, so the board stays playable with the menu up, and invisible to screen capture so Oracle never reads its own drawing.
 - **Control Panel** - One dark panel with three tabs: Play (the evaluation, whose move it is, the board as Oracle sees it, the ranked moves), Engine (which engine, depth, lines, strength) and Calibrate. See [DESIGN.md](DESIGN.md) for the design system.
 - **Platform-Independent Board Support** - Works with any chess website or desktop application - if you can see the board on your screen, Oracle can detect it.
 

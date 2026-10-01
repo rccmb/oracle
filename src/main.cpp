@@ -58,26 +58,55 @@ void CaptureBoardClicks() {
     }
 }
 
+// Which mouse input the overlay takes, settled every frame.
+//
+// With the menu closed, none. With it open, only while the pointer is over the
+// menu or the menu is in the middle of using it, as when a slider is dragged
+// past the panel's edge, plus the whole screen while manual calibration waits
+// for its corner clicks. The overlay is a window the size of the desktop, and
+// its colour key makes the black see-through but not click-through, so taking
+// the mouse everywhere whenever the menu was open left nothing underneath
+// clickable, the board included.
+static void UpdateOverlayInput(HWND hwndOverlay, bool overlayWantsMouse) {
+    const LONG_PTR style = GetWindowLongPtr(hwndOverlay, GWL_EXSTYLE);
+
+    LONG_PTR wanted = style | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE;
+    if (IMGUI_MENU_VISIBLE) {
+        wanted &= ~WS_EX_NOACTIVATE;
+        if (overlayWantsMouse) wanted &= ~WS_EX_TRANSPARENT;
+    }
+
+    if (wanted != style) SetWindowLongPtr(hwndOverlay, GWL_EXSTYLE, wanted);
+}
+
 void ToggleMenu(HWND hwndOverlay) {
     IMGUI_MENU_VISIBLE = !IMGUI_MENU_VISIBLE;
 
-    // Enable/disable click-through.
-    LONG_PTR exStyle = GetWindowLongPtr(hwndOverlay, GWL_EXSTYLE);
-    if (IMGUI_MENU_VISIBLE) {
-        SetWindowLongPtr(hwndOverlay, GWL_EXSTYLE, exStyle & ~(WS_EX_TRANSPARENT | WS_EX_NOACTIVATE));
-        SetForegroundWindow(hwndOverlay);
-    }
-    else {
-        SetWindowLongPtr(hwndOverlay, GWL_EXSTYLE, exStyle | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE);
-    }
+    // Whether the overlay takes clicks is settled every frame; opening the menu
+    // also brings it to the front, so it takes keys straight away.
+    UpdateOverlayInput(hwndOverlay, false);
+    if (IMGUI_MENU_VISIBLE) SetForegroundWindow(hwndOverlay);
 
     Sleep(100);
 }
 
-void RenderFrame() {
+void RenderFrame(HWND hwndOverlay) {
+    // While the overlay passes the mouse through, it gets no mouse messages, so
+    // the menu would not know the pointer had arrived over it. Read it here.
+    ImGuiIO& io = ImGui::GetIO();
+    if (IMGUI_MENU_VISIBLE) {
+        POINT cursor;
+        if (GetCursorPos(&cursor)) {
+            io.AddMousePosEvent((float)(cursor.x - g_virtualScreen.left), (float)(cursor.y - g_virtualScreen.top));
+        }
+    }
+
     ImGui_ImplDX11_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
+
+    const bool calibrationClicks = !g_boardClicksReady && g_userScreenshotReady;
+    UpdateOverlayInput(hwndOverlay, io.WantCaptureMouse || calibrationClicks);
 
     DrawBoardOverlay(ImGui::GetBackgroundDrawList());
 
@@ -165,7 +194,7 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
         }
         
         // New frame.
-        RenderFrame();
+        RenderFrame(hwndOverlay);
 
         Sleep(10);
     }
